@@ -1,10 +1,21 @@
 pub const TokenType = enum {
     illegal,
     eof,
+
     identifier,
     int,
+
     assign,
     plus,
+    minus,
+    bang,
+    asterisk,
+    slash,
+    gt,
+    lt,
+    equal,
+    not_equal,
+
     comma,
     semicolon,
     colon,
@@ -16,6 +27,11 @@ pub const TokenType = enum {
     keyword_function,
     keyword_let,
     keyword_end,
+    keyword_return,
+    keyword_else,
+    keyword_if,
+    keyword_true,
+    keyword_false,
 };
 
 pub const Token = struct {

@@ -28,20 +28,46 @@ pub const Lexer = struct {
     }
 
     pub fn GetNextToken(self: *Self) Token {
+        self.skipWhitespaces();
         const token = switch (self.char) {
-            '=' => Token.init(.assign, &[_]u8{self.char}),
-            ';' => Token.init(.semicolon, &[_]u8{self.char}),
-            ':' => Token.init(.colon, &[_]u8{self.char}),
-            '(' => Token.init(.left_paren, &[_]u8{self.char}),
-            ')' => Token.init(.right_paren, &[_]u8{self.char}),
-            '{' => Token.init(.left_brace, &[_]u8{self.char}),
-            '}' => Token.init(.right_brace, &[_]u8{self.char}),
-            '0' => Token.init(.eof, &[_]u8{self.char}),
-            'a'...'z', 'A'...'Z' => blk: {
-                const identifier = self.readIdentifier();
-                break :blk Token.init(self.checkIdentifier(identifier), identifier);
+            '=' => blk: {
+                if (self.peekChar() == '=') {
+                    self.readChar();
+                    break :blk Token.init(.equal, "==");
+                }
+                break :blk Token.init(.assign, "=");
             },
-            else => Token.init(.illegal, ""),
+            ';' => Token.init(.semicolon, ";"),
+            ':' => Token.init(.colon, ":"),
+            '(' => Token.init(.left_paren, "("),
+            ')' => Token.init(.right_paren, ")"),
+            '{' => Token.init(.left_brace, "{"),
+            '}' => Token.init(.right_brace, "}"),
+            '+' => Token.init(.plus, "+"),
+            '-' => Token.init(.minus, "-"),
+            '*' => Token.init(.asterisk, "*"),
+            '/' => Token.init(.slash, "/"),
+            '!' => blk: {
+                if (self.peekChar() == '=') {
+                    self.readChar();
+                    break :blk Token.init(.not_equal, "!=");
+                }
+                break :blk Token.init(.bang, "!");
+            },
+            '>' => Token.init(.gt, &[_]u8{self.char}),
+            '<' => Token.init(.lt, &[_]u8{self.char}),
+            'a'...'z', 'A'...'Z' => {
+                const identifier = self.readIdentifier();
+                return Token.init(self.checkIdentifier(identifier), identifier);
+            },
+            '0'...'9' => blk: {
+                if (self.position >= self.input.len) {
+                    break :blk Token.init(.eof, "eof");
+                }
+                const number = self.readNumber();
+                return Token.init(.int, number);
+            },
+            else => Token.init(.illegal, "illegal"),
         };
 
         self.readChar();
@@ -51,12 +77,31 @@ pub const Lexer = struct {
     fn initKeywords(map: *std.StringHashMap(TokenType)) !void {
         try map.put("fn", .keyword_function);
         try map.put("let", .keyword_let);
+        try map.put("if", .keyword_if);
+        try map.put("else", .keyword_else);
+        try map.put("true", .keyword_true);
+        try map.put("false", .keyword_false);
+        try map.put("return", .keyword_return);
         try map.put("end", .keyword_end);
     }
 
+    fn skipWhitespaces(self: *Self) void {
+        while (std.ascii.isWhitespace(self.char)) {
+            self.readChar();
+        }
+    }
+
+    fn peekChar(self: *Self) u8 {
+        if (self.readPosition >= self.input.len) {
+            return '0';
+        } else {
+            return self.input[self.readPosition];
+        }
+    }
+
     fn checkIdentifier(self: *Self, identifier: []const u8) TokenType {
-        if (self.keywords.get(identifier)) |token| {
-            return token;
+        if (self.keywords.get(identifier)) |token_type| {
+            return token_type;
         }
         return .identifier;
     }
@@ -69,8 +114,16 @@ pub const Lexer = struct {
         return self.input[position..self.position];
     }
 
+    fn readNumber(self: *Self) []const u8 {
+        const position = self.position;
+        while (std.ascii.isDigit(self.char)) {
+            self.readChar();
+        }
+        return self.input[position..self.position];
+    }
+
     fn readChar(self: *Self) void {
-        if (self.readPosition > self.input.len) {
+        if (self.readPosition >= self.input.len) {
             self.char = '0';
         } else {
             self.char = self.input[self.readPosition];
