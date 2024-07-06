@@ -39,6 +39,7 @@ pub const Lexer = struct {
             },
             ';' => Token.init(.semicolon, ";"),
             ':' => Token.init(.colon, ":"),
+            ',' => Token.init(.comma, ","),
             '(' => Token.init(.left_paren, "("),
             ')' => Token.init(.right_paren, ")"),
             '{' => Token.init(.left_brace, "{"),
@@ -151,8 +152,9 @@ test "NextToken" {
         \\      let a = 5;
         \\      let b = 10;
         \\      if(a + b >= 15):
-        \\          return 10;
+        \\          return true;
         \\      end;
+        \\      return false;
         \\ end;
     ;
     const result = [_]Token{
@@ -183,9 +185,12 @@ test "NextToken" {
         Token.init(.right_paren, ")"),
         Token.init(.colon, ":"),
         Token.init(.keyword_return, "return"),
-        Token.init(.int, "10"),
+        Token.init(.keyword_true, "true"),
         Token.init(.semicolon, ";"),
         Token.init(.keyword_end, "end"),
+        Token.init(.semicolon, ";"),
+        Token.init(.keyword_return, "return"),
+        Token.init(.keyword_false, "false"),
         Token.init(.semicolon, ";"),
         Token.init(.keyword_end, "end"),
         Token.init(.semicolon, ";"),
@@ -199,5 +204,6 @@ test "NextToken" {
     for (result) |token| {
         const current_token = lexer.GetNextToken();
         try std.testing.expectEqual(token.type, current_token.type);
+        try std.testing.expectEqualStrings(token.literal, current_token.literal);
     }
 }
