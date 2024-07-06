@@ -12,7 +12,9 @@ pub const TokenType = enum {
     asterisk,
     slash,
     gt,
+    geq,
     lt,
+    leq,
     equal,
     not_equal,
 

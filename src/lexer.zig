@@ -54,8 +54,20 @@ pub const Lexer = struct {
                 }
                 break :blk Token.init(.bang, "!");
             },
-            '>' => Token.init(.gt, &[_]u8{self.char}),
-            '<' => Token.init(.lt, &[_]u8{self.char}),
+            '>' => blk: {
+                if (self.peekChar() == '=') {
+                    self.readChar();
+                    break :blk Token.init(.geq, ">=");
+                }
+                break :blk Token.init(.gt, &[_]u8{self.char});
+            },
+            '<' => blk: {
+                if (self.peekChar() == '=') {
+                    self.readChar();
+                    break :blk Token.init(.leq, "<=");
+                }
+                break :blk Token.init(.lt, &[_]u8{self.char});
+            },
             'a'...'z', 'A'...'Z' => {
                 const identifier = self.readIdentifier();
                 return Token.init(self.checkIdentifier(identifier), identifier);
@@ -133,4 +145,59 @@ pub const Lexer = struct {
     }
 };
 
-test "NextToken" {}
+test "NextToken" {
+    const input =
+        \\ let check = fn():
+        \\      let a = 5;
+        \\      let b = 10;
+        \\      if(a + b >= 15):
+        \\          return 10;
+        \\      end;
+        \\ end;
+    ;
+    const result = [_]Token{
+        Token.init(.keyword_let, "let"),
+        Token.init(.identifier, "check"),
+        Token.init(.assign, "="),
+        Token.init(.keyword_function, "fn"),
+        Token.init(.left_paren, "("),
+        Token.init(.right_paren, ")"),
+        Token.init(.colon, ":"),
+        Token.init(.keyword_let, "let"),
+        Token.init(.identifier, "a"),
+        Token.init(.assign, "="),
+        Token.init(.int, "5"),
+        Token.init(.semicolon, ";"),
+        Token.init(.keyword_let, "let"),
+        Token.init(.identifier, "b"),
+        Token.init(.assign, "="),
+        Token.init(.int, "10"),
+        Token.init(.semicolon, ";"),
+        Token.init(.keyword_if, "if"),
+        Token.init(.left_paren, "("),
+        Token.init(.identifier, "a"),
+        Token.init(.plus, "+"),
+        Token.init(.identifier, "b"),
+        Token.init(.geq, ">="),
+        Token.init(.int, "15"),
+        Token.init(.right_paren, ")"),
+        Token.init(.colon, ":"),
+        Token.init(.keyword_return, "return"),
+        Token.init(.int, "10"),
+        Token.init(.semicolon, ";"),
+        Token.init(.keyword_end, "end"),
+        Token.init(.semicolon, ";"),
+        Token.init(.keyword_end, "end"),
+        Token.init(.semicolon, ";"),
+        Token.init(.eof, "eof"),
+    };
+
+    const allocator = std.testing.allocator;
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+
+    for (result) |token| {
+        const current_token = lexer.GetNextToken();
+        try std.testing.expectEqual(token.type, current_token.type);
+    }
+}
