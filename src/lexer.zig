@@ -1,4 +1,5 @@
 const t = @import("token.zig");
+const std = @import("std");
 
 const Token = t.Token;
 const TokenType = t.TokenType;
@@ -32,11 +33,20 @@ pub const Lexer = struct {
             '{' => Token.init(.left_brace, &[_]u8{self.char}),
             '}' => Token.init(.right_brace, &[_]u8{self.char}),
             '0' => Token.init(.eof, &[_]u8{self.char}),
-            else => Token.init(.illegal, &[_]u8{self.char}),
+            'a'...'z', 'A'...'Z' => Token.init(.identifier, self.readIdentifier()),
+            else => Token.init(.illegal, ""),
         };
 
         self.readChar();
         return token;
+    }
+
+    fn readIdentifier(self: *Self) []const u8 {
+        const position = self.position;
+        while (std.ascii.isAlphabetic(self.char)) {
+            self.readChar();
+        }
+        return self.input[position..self.position];
     }
 
     fn readChar(self: *Self) void {
@@ -49,3 +59,5 @@ pub const Lexer = struct {
         self.readPosition += 1;
     }
 };
+
+test "NextToken" {}
