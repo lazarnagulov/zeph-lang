@@ -7,7 +7,7 @@ const TokenType = t.TokenType;
 pub const Lexer = struct {
     input: []const u8,
     position: usize,
-    readPosition: usize,
+    read_position: usize,
     char: u8,
     keywords: std.StringHashMap(TokenType),
 
@@ -17,7 +17,7 @@ pub const Lexer = struct {
         var keywords_map = std.StringHashMap(TokenType).init(allocator.*);
         try initKeywords(&keywords_map);
 
-        var lexer = Lexer{ .input = input, .position = 0, .readPosition = 0, .char = '0', .keywords = keywords_map };
+        var lexer = Lexer{ .input = input, .position = 0, .read_position = 0, .char = '0', .keywords = keywords_map };
         lexer.readChar();
 
         return lexer;
@@ -105,10 +105,10 @@ pub const Lexer = struct {
     }
 
     fn peekChar(self: *Self) u8 {
-        if (self.readPosition >= self.input.len) {
+        if (self.read_position >= self.input.len) {
             return '0';
         } else {
-            return self.input[self.readPosition];
+            return self.input[self.read_position];
         }
     }
 
@@ -136,13 +136,13 @@ pub const Lexer = struct {
     }
 
     fn readChar(self: *Self) void {
-        if (self.readPosition >= self.input.len) {
+        if (self.read_position >= self.input.len) {
             self.char = '0';
         } else {
-            self.char = self.input[self.readPosition];
+            self.char = self.input[self.read_position];
         }
-        self.position = self.readPosition;
-        self.readPosition += 1;
+        self.position = self.read_position;
+        self.read_position += 1;
     }
 };
 
