@@ -14,20 +14,25 @@ pub fn start() !void {
     var buf_reader = reader.reader();
     var buf_writer = writer.writer();
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    while (true) {
+        try buf_writer.print(">> ", .{});
+        try writer.flush();
 
-    const line = try buf_reader.readUntilDelimiter(&buf, '\n');
-    var lexer = try Lexer.init(
-        line,
-        &gpa.allocator(),
-    );
-    defer lexer.deinit();
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer _ = gpa.deinit();
 
-    var current_token = lexer.GetNextToken();
-    while (current_token.type != .eof) {
-        try buf_writer.print("{s}\t[{any}]\n", .{ current_token.literal, current_token.type });
-        current_token = lexer.GetNextToken();
+        const line = try buf_reader.readUntilDelimiter(&buf, '\n');
+        var lexer = try Lexer.init(
+            line,
+            &gpa.allocator(),
+        );
+        defer lexer.deinit();
+
+        var current_token = lexer.GetNextToken();
+        while (current_token.type != .eof) {
+            try buf_writer.print("{s}\t[{any}]\n", .{ current_token.literal, current_token.type });
+            current_token = lexer.GetNextToken();
+        }
+        try writer.flush();
     }
-    try writer.flush();
 }
