@@ -10,10 +10,11 @@ const Statement = ast.Statement;
 const Let = ast.Let;
 const Return = ast.Return;
 const Identifier = ast.Identifier;
+const IntegerLiteral = ast.IntegerLiteral;
+const Boolean = ast.Boolean;
 const Expression = ast.Expression;
 const ExpressionStatement = ast.ExpressionStatement;
 const PrefixExpression = ast.PrefixExpression;
-const IntegerLiteral = ast.IntegerLiteral;
 const InfixExpression = ast.InfixExpression;
 
 const Precedence = p.Precedence;
@@ -24,6 +25,7 @@ const TokenType = t.TokenType;
 pub const ParseError = error{
     ExpectedIdentifier,
     ExpectedAssign,
+    ExprectedRightParen,
     InvalidProgram,
     InvalidExpression,
     InvalidInteger,
@@ -129,7 +131,8 @@ pub const Parser = struct {
             .identifier => .{ .identifier = self.parseIdentifier() },
             .int => .{ .int_literal = try self.parseIntegerLiteral() },
             .bang, .minus => .{ .prefix_expression = try self.parsePrefixExpression() },
-
+            .keyword_true, .keyword_false => .{ .boolean = self.parseBoolean() },
+            .left_paren => try self.parseGroupExpression(),
             else => return ParseError.InvalidExpression,
         };
     }
@@ -179,6 +182,13 @@ pub const Parser = struct {
         };
     }
 
+    fn parseBoolean(self: *Self) Boolean {
+        return .{
+            .token = self.current_token,
+            .value = self.current_token.type == .keyword_true,
+        };
+    }
+
     fn parsePrefixExpression(self: *Self) ParseError!PrefixExpression {
         const current_token = self.current_token;
         self.nextToken();
@@ -202,6 +212,17 @@ pub const Parser = struct {
             .right = &right,
         };
     }
+
+    fn parseGroupExpression(self: *Self) ParseError!Expression {
+        self.nextToken();
+        const expression = self.parseExpression(.lowest);
+
+        if (self.expectPeek(.right_paren)) {
+            return ParseError.ExprectedRightParen;
+        }
+
+        return expression;
+    }
 };
 
 test "ParseLet" {
@@ -222,40 +243,40 @@ test "ParseLet" {
     try std.testing.expect(program.statemets.items.len == 3);
 }
 
-// test "ParseReturn" {
-//     const input =
-//         \\ return 5;
-//         \\ return 10;
-//         \\ return 9421421;
-//     ;
+test "ParseReturn" {
+    const input =
+        \\ return 5;
+        \\ return 10;
+        \\ return 9421421;
+    ;
 
-//     const allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
-//     var lexer = try Lexer.init(input, &allocator);
-//     defer lexer.deinit();
-//     var parser = Parser.init(&lexer, &allocator);
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+    var parser = Parser.init(&lexer, &allocator);
 
-//     var program = try parser.parse();
-//     defer program.deinit();
-//     try std.testing.expect(program.statemets.items.len == 3);
-// }
+    var program = try parser.parse();
+    defer program.deinit();
+    try std.testing.expect(program.statemets.items.len == 3);
+}
 
-// test "ParseExpression" {
-//     const input = "5; 10; 20;";
+test "ParseExpression" {
+    const input = "5; 10; 20;";
 
-//     const allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
-//     var lexer = try Lexer.init(input, &allocator);
-//     defer lexer.deinit();
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
 
-//     var parser = Parser.init(&lexer, &allocator);
-//     var program = try parser.parse();
-//     defer program.deinit();
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
 
-//     for (program.statemets.items) |statement| {
-//         try std.testing.expect(statement.expression_statement.token.type == .int);
-//     }
-// }
+    for (program.statemets.items) |statement| {
+        try std.testing.expect(statement.expression_statement.token.type == .int);
+    }
+}
 
 test "ParsePrefix" {
     const input =
@@ -279,7 +300,7 @@ test "ParsePrefix" {
 }
 
 test "ParseInfix" {
-    const input = "2 + 3*5;";
+    const input = "true;";
     const allocator = std.testing.allocator;
 
     var lexer = try Lexer.init(input, &allocator);
@@ -288,6 +309,4 @@ test "ParseInfix" {
     var parser = Parser.init(&lexer, &allocator);
     var program = try parser.parse();
     defer program.deinit();
-
-    std.debug.print("{}", .{program.statemets.items[0].expression_statement.expression.infix_expression});
 }

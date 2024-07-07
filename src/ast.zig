@@ -22,6 +22,7 @@ pub const Program = struct {
 pub const Expression = union(enum) {
     identifier: Identifier,
     int_literal: IntegerLiteral,
+    boolean: Boolean,
     prefix_expression: PrefixExpression,
     infix_expression: InfixExpression,
 };
@@ -63,6 +64,11 @@ pub const Identifier = struct {
 pub const IntegerLiteral = struct {
     token: Token,
     value: i64,
+};
+
+pub const Boolean = struct {
+    token: Token,
+    value: bool,
 };
 
 pub const ExpressionStatement = struct { token: Token, expression: Expression };
