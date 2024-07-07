@@ -23,6 +23,7 @@ pub const Expression = union(enum) {
     identifier: Identifier,
     int_literal: IntegerLiteral,
     prefix_expression: PrefixExpression,
+    infix_expression: InfixExpression,
 };
 
 pub const Statement = union(enum) {
@@ -68,6 +69,13 @@ pub const ExpressionStatement = struct { token: Token, expression: Expression };
 
 pub const PrefixExpression = struct {
     token: Token,
+    operator: []const u8,
+    right: *Expression,
+};
+
+pub const InfixExpression = struct {
+    token: Token,
+    left: *Expression,
     operator: []const u8,
     right: *Expression,
 };

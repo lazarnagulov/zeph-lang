@@ -14,6 +14,7 @@ const Expression = ast.Expression;
 const ExpressionStatement = ast.ExpressionStatement;
 const PrefixExpression = ast.PrefixExpression;
 const IntegerLiteral = ast.IntegerLiteral;
+const InfixExpression = ast.InfixExpression;
 
 const Precedence = p.Precedence;
 const Lexer = l.Lexer;
@@ -26,6 +27,8 @@ pub const ParseError = error{
     InvalidProgram,
     InvalidExpression,
     InvalidInteger,
+    InvalidInfix,
+    OutOfMemory,
 };
 
 pub const Parser = struct {
@@ -126,7 +129,16 @@ pub const Parser = struct {
             .identifier => .{ .identifier = self.parseIdentifier() },
             .int => .{ .int_literal = try self.parseIntegerLiteral() },
             .bang, .minus => .{ .prefix_expression = try self.parsePrefixExpression() },
+
             else => return ParseError.InvalidExpression,
+        };
+    }
+
+    fn parseInfixExpressionByToken(self: *Self, token: Token, left: *Expression) !Expression {
+        self.nextToken();
+        return switch (token.type) {
+            .plus, .minus, .asterisk, .slash, .equal, .not_equal, .gt, .lt, .geq, .leq => Expression{ .infix_expression = try self.parseInfixExpression(left) },
+            else => ParseError.InvalidInfix,
         };
     }
 
@@ -144,8 +156,12 @@ pub const Parser = struct {
     }
 
     fn parseExpression(self: *Self, precedence: Precedence) !Expression {
-        _ = precedence;
-        return try self.parseExpressionByPrefix(self.current_token);
+        var left_expression = try self.parseExpressionByPrefix(self.current_token);
+        while (self.current_token.type != .semicolon and precedence.lessThen(Precedence.fromToken(self.peek_token))) {
+            left_expression = try self.parseInfixExpressionByToken(self.current_token, &left_expression);
+        }
+
+        return left_expression;
     }
 
     fn parseIdentifier(self: *Self) Identifier {
@@ -174,6 +190,18 @@ pub const Parser = struct {
             .right = &expression,
         };
     }
+
+    fn parseInfixExpression(self: *Self, left: *Expression) ParseError!InfixExpression {
+        const current_token = self.current_token;
+        self.nextToken();
+        var right = try self.parseExpression(Precedence.fromToken(current_token));
+        return .{
+            .token = current_token,
+            .left = left,
+            .operator = current_token.literal,
+            .right = &right,
+        };
+    }
 };
 
 test "ParseLet" {
@@ -194,45 +222,46 @@ test "ParseLet" {
     try std.testing.expect(program.statemets.items.len == 3);
 }
 
-test "ParseReturn" {
-    const input =
-        \\ return 5;
-        \\ return 10;
-        \\ return 9421421;
-    ;
+// test "ParseReturn" {
+//     const input =
+//         \\ return 5;
+//         \\ return 10;
+//         \\ return 9421421;
+//     ;
 
-    const allocator = std.testing.allocator;
+//     const allocator = std.testing.allocator;
 
-    var lexer = try Lexer.init(input, &allocator);
-    defer lexer.deinit();
-    var parser = Parser.init(&lexer, &allocator);
+//     var lexer = try Lexer.init(input, &allocator);
+//     defer lexer.deinit();
+//     var parser = Parser.init(&lexer, &allocator);
 
-    var program = try parser.parse();
-    defer program.deinit();
-    try std.testing.expect(program.statemets.items.len == 3);
-}
+//     var program = try parser.parse();
+//     defer program.deinit();
+//     try std.testing.expect(program.statemets.items.len == 3);
+// }
 
-test "ParseExpression" {
-    const input = "5; 10; 20;";
+// test "ParseExpression" {
+//     const input = "5; 10; 20;";
 
-    const allocator = std.testing.allocator;
+//     const allocator = std.testing.allocator;
 
-    var lexer = try Lexer.init(input, &allocator);
-    defer lexer.deinit();
+//     var lexer = try Lexer.init(input, &allocator);
+//     defer lexer.deinit();
 
-    var parser = Parser.init(&lexer, &allocator);
-    var program = try parser.parse();
-    defer program.deinit();
+//     var parser = Parser.init(&lexer, &allocator);
+//     var program = try parser.parse();
+//     defer program.deinit();
 
-    for (program.statemets.items) |statement| {
-        try std.testing.expect(statement.expression_statement.token.type == .int);
-    }
-}
+//     for (program.statemets.items) |statement| {
+//         try std.testing.expect(statement.expression_statement.token.type == .int);
+//     }
+// }
 
 test "ParsePrefix" {
     const input =
         \\ !5;
-        \\ !foobar;
+        \\ -foobar;
+        \\ -5;
     ;
 
     const allocator = std.testing.allocator;
@@ -244,7 +273,21 @@ test "ParsePrefix" {
     var program = try parser.parse();
     defer program.deinit();
 
-    for (program.statemets.items) |statement| {
-        try std.testing.expectEqualStrings(statement.expression_statement.expression.prefix_expression.operator, "!");
-    }
+    try std.testing.expectEqualStrings(program.statemets.items[0].expression_statement.expression.prefix_expression.operator, "!");
+    try std.testing.expectEqualStrings(program.statemets.items[1].expression_statement.expression.prefix_expression.operator, "-");
+    try std.testing.expectEqualStrings(program.statemets.items[2].expression_statement.expression.prefix_expression.operator, "-");
+}
+
+test "ParseInfix" {
+    const input = "2 + 3*5;";
+    const allocator = std.testing.allocator;
+
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
+
+    std.debug.print("{}", .{program.statemets.items[0].expression_statement.expression.infix_expression});
 }

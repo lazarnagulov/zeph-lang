@@ -11,6 +11,8 @@ pub const Precedence = enum(u4) {
     prefix = 5,
     call = 6,
 
+    const Self = @This();
+
     pub fn fromToken(token: Token) Precedence {
         return switch (token.type) {
             .equal => .equals,
@@ -26,5 +28,9 @@ pub const Precedence = enum(u4) {
             .left_paren => .call,
             else => .lowest,
         };
+    }
+
+    pub fn lessThen(self: Precedence, other: Precedence) bool {
+        return @intFromEnum(self) < @intFromEnum(other);
     }
 };
