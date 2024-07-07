@@ -60,14 +60,14 @@ pub const Lexer = struct {
                     self.readChar();
                     break :blk Token.init(.geq, ">=");
                 }
-                break :blk Token.init(.gt, &[_]u8{self.char});
+                break :blk Token.init(.gt, ">");
             },
             '<' => blk: {
                 if (self.peekChar() == '=') {
                     self.readChar();
                     break :blk Token.init(.leq, "<=");
                 }
-                break :blk Token.init(.lt, &[_]u8{self.char});
+                break :blk Token.init(.lt, "<");
             },
             'a'...'z', 'A'...'Z' => {
                 const identifier = self.readIdentifier();

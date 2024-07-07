@@ -25,6 +25,7 @@ pub const Expression = union(enum) {
     boolean: Boolean,
     prefix_expression: PrefixExpression,
     infix_expression: InfixExpression,
+    if_expression: *IfExpression,
 };
 
 pub const Statement = union(enum) {
@@ -84,4 +85,16 @@ pub const InfixExpression = struct {
     left: *Expression,
     operator: []const u8,
     right: *Expression,
+};
+
+pub const IfExpression = struct {
+    token: Token,
+    condition: Expression,
+    consequence: BlockStatement,
+    alternative: ?BlockStatement,
+};
+
+pub const BlockStatement = struct {
+    token: Token,
+    statements: std.ArrayList(Statement),
 };

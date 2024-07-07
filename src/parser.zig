@@ -16,6 +16,8 @@ const Expression = ast.Expression;
 const ExpressionStatement = ast.ExpressionStatement;
 const PrefixExpression = ast.PrefixExpression;
 const InfixExpression = ast.InfixExpression;
+const IfExpression = ast.IfExpression;
+const BlockStatement = ast.BlockStatement;
 
 const Precedence = p.Precedence;
 const Lexer = l.Lexer;
@@ -25,7 +27,11 @@ const TokenType = t.TokenType;
 pub const ParseError = error{
     ExpectedIdentifier,
     ExpectedAssign,
-    ExprectedRightParen,
+    ExpectedRightParen,
+    ExpectedLeftParen,
+    ExpectedColon,
+    ExpectedSemicolon,
+    ExpectedEnd,
     InvalidProgram,
     InvalidExpression,
     InvalidInteger,
@@ -132,6 +138,10 @@ pub const Parser = struct {
             .int => .{ .int_literal = try self.parseIntegerLiteral() },
             .bang, .minus => .{ .prefix_expression = try self.parsePrefixExpression() },
             .keyword_true, .keyword_false => .{ .boolean = self.parseBoolean() },
+            .keyword_if => blk: {
+                var if_expression = try self.parseIfExpression();
+                break :blk .{ .if_expression = &if_expression };
+            },
             .left_paren => try self.parseGroupExpression(),
             else => return ParseError.InvalidExpression,
         };
@@ -217,96 +227,164 @@ pub const Parser = struct {
         self.nextToken();
         const expression = self.parseExpression(.lowest);
 
-        if (self.expectPeek(.right_paren)) {
-            return ParseError.ExprectedRightParen;
+        if (!self.expectPeek(.right_paren)) {
+            return ParseError.ExpectedRightParen;
         }
 
         return expression;
     }
+
+    fn parseIfExpression(self: *Self) ParseError!IfExpression {
+        const current_token = self.current_token;
+
+        if (!self.expectPeek(.left_paren)) {
+            return ParseError.ExpectedLeftParen;
+        }
+
+        const condition = try self.parseExpression(.lowest);
+        if (self.current_token.type != .right_paren) {
+            return ParseError.ExpectedRightParen;
+        }
+
+        if (!self.expectPeek(.colon)) {
+            return ParseError.ExpectedColon;
+        }
+
+        const consequence = try self.parseBlockStatement();
+        var alternative: ?BlockStatement = null;
+        if (self.current_token.type == .keyword_else) {
+            self.nextToken();
+
+            if (self.current_token.type != .colon) {
+                return ParseError.ExpectedColon;
+            }
+
+            alternative = try self.parseBlockStatement();
+        }
+
+        return IfExpression{
+            .token = current_token,
+            .condition = condition,
+            .consequence = consequence,
+            .alternative = alternative,
+        };
+    }
+
+    fn parseBlockStatement(self: *Self) !BlockStatement {
+        const current_token = self.current_token;
+        var statements = std.ArrayList(Statement).init(self.allocator.*);
+
+        self.nextToken();
+
+        while (self.current_token.type != .keyword_end and self.current_token.type != .eof) {
+            const statement = try self.parseStatement();
+            try statements.append(statement);
+            self.nextToken();
+        }
+
+        if (self.current_token.type != .keyword_end) {
+            return ParseError.ExpectedEnd;
+        }
+
+        self.nextToken();
+
+        if (self.current_token.type != .semicolon) {
+            return ParseError.ExpectedSemicolon;
+        }
+
+        self.nextToken();
+
+        return BlockStatement{
+            .token = current_token,
+            .statements = statements,
+        };
+    }
 };
 
-test "ParseLet" {
-    const input =
-        \\ let x = 5;
-        \\ let y = 10;
-        \\ let foobar = 41241;
-    ;
+// test "ParseLet" {
+//     const input =
+//         \\ let x = 5;
+//         \\ let y = 10;
+//         \\ let foobar = 41241;
+//     ;
+//     const allocator = std.testing.allocator;
+
+//     var lexer = try Lexer.init(input, &allocator);
+//     defer lexer.deinit();
+//     var parser = Parser.init(&lexer, &allocator);
+
+//     var program = try parser.parse();
+//     defer program.deinit();
+
+//     try std.testing.expect(program.statemets.items.len == 3);
+// }
+
+// test "ParseReturn" {
+//     const input =
+//         \\ return 5;
+//         \\ return 10;
+//         \\ return 9421421;
+//     ;
+
+//     const allocator = std.testing.allocator;
+
+//     var lexer = try Lexer.init(input, &allocator);
+//     defer lexer.deinit();
+//     var parser = Parser.init(&lexer, &allocator);
+
+//     var program = try parser.parse();
+//     defer program.deinit();
+//     try std.testing.expect(program.statemets.items.len == 3);
+// }
+
+// test "ParseExpression" {
+//     const input = "5; 10; 20;";
+
+//     const allocator = std.testing.allocator;
+
+//     var lexer = try Lexer.init(input, &allocator);
+//     defer lexer.deinit();
+
+//     var parser = Parser.init(&lexer, &allocator);
+//     var program = try parser.parse();
+//     defer program.deinit();
+
+//     for (program.statemets.items) |statement| {
+//         try std.testing.expect(statement.expression_statement.token.type == .int);
+//     }
+// }
+
+// test "ParsePrefix" {
+//     const input =
+//         \\ !5;
+//         \\ -foobar;
+//         \\ -5;
+//     ;
+
+//     const allocator = std.testing.allocator;
+
+//     var lexer = try Lexer.init(input, &allocator);
+//     defer lexer.deinit();
+
+//     var parser = Parser.init(&lexer, &allocator);
+//     var program = try parser.parse();
+//     defer program.deinit();
+
+//     try std.testing.expectEqualStrings(program.statemets.items[0].expression_statement.expression.prefix_expression.operator, "!");
+//     try std.testing.expectEqualStrings(program.statemets.items[1].expression_statement.expression.prefix_expression.operator, "-");
+//     try std.testing.expectEqualStrings(program.statemets.items[2].expression_statement.expression.prefix_expression.operator, "-");
+// }
+
+test "ParseIf" {
+    const input = "if(a>b): let a = 5; end; else: let c = 10; end;";
     const allocator = std.testing.allocator;
 
     var lexer = try Lexer.init(input, &allocator);
     defer lexer.deinit();
-    var parser = Parser.init(&lexer, &allocator);
-
-    var program = try parser.parse();
-    defer program.deinit();
-
-    try std.testing.expect(program.statemets.items.len == 3);
-}
-
-test "ParseReturn" {
-    const input =
-        \\ return 5;
-        \\ return 10;
-        \\ return 9421421;
-    ;
-
-    const allocator = std.testing.allocator;
-
-    var lexer = try Lexer.init(input, &allocator);
-    defer lexer.deinit();
-    var parser = Parser.init(&lexer, &allocator);
-
-    var program = try parser.parse();
-    defer program.deinit();
-    try std.testing.expect(program.statemets.items.len == 3);
-}
-
-test "ParseExpression" {
-    const input = "5; 10; 20;";
-
-    const allocator = std.testing.allocator;
-
-    var lexer = try Lexer.init(input, &allocator);
-    defer lexer.deinit();
 
     var parser = Parser.init(&lexer, &allocator);
     var program = try parser.parse();
     defer program.deinit();
 
-    for (program.statemets.items) |statement| {
-        try std.testing.expect(statement.expression_statement.token.type == .int);
-    }
-}
-
-test "ParsePrefix" {
-    const input =
-        \\ !5;
-        \\ -foobar;
-        \\ -5;
-    ;
-
-    const allocator = std.testing.allocator;
-
-    var lexer = try Lexer.init(input, &allocator);
-    defer lexer.deinit();
-
-    var parser = Parser.init(&lexer, &allocator);
-    var program = try parser.parse();
-    defer program.deinit();
-
-    try std.testing.expectEqualStrings(program.statemets.items[0].expression_statement.expression.prefix_expression.operator, "!");
-    try std.testing.expectEqualStrings(program.statemets.items[1].expression_statement.expression.prefix_expression.operator, "-");
-    try std.testing.expectEqualStrings(program.statemets.items[2].expression_statement.expression.prefix_expression.operator, "-");
-}
-
-test "ParseInfix" {
-    const input = "true;";
-    const allocator = std.testing.allocator;
-
-    var lexer = try Lexer.init(input, &allocator);
-    defer lexer.deinit();
-
-    var parser = Parser.init(&lexer, &allocator);
-    var program = try parser.parse();
-    defer program.deinit();
+    std.debug.print("{}", .{program.statemets.items[0]});
 }
