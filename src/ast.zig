@@ -16,12 +16,14 @@ pub const Program = struct {
 };
 
 pub const Expression = union(enum) {
+    identifier: *const Identifier,
     token: *const Token,
 };
 
 pub const Statement = union(enum) {
     let: *const Let,
-    ret: *Return,
+    ret: *const Return,
+    expression_statement: *const ExpressionStatement,
 };
 
 pub const Let = struct {
@@ -51,3 +53,5 @@ pub const Identifier = struct {
         return self.token.literal;
     }
 };
+
+pub const ExpressionStatement = struct { token: Token, expression: *const Expression };

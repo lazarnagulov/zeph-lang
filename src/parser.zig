@@ -1,15 +1,19 @@
 const std = @import("std");
 const l = @import("lexer.zig");
 const t = @import("token.zig");
+const p = @import("precedence.zig");
 
 const ast = @import("ast.zig");
+
 const Program = ast.Program;
 const Statement = ast.Statement;
 const Let = ast.Let;
 const Return = ast.Return;
 const Identifier = ast.Identifier;
 const Expression = ast.Expression;
+const ExpressionStatement = ast.ExpressionStatement;
 
+const Precedence = p.Precedence;
 const Lexer = l.Lexer;
 const Token = t.Token;
 const TokenType = t.TokenType;
@@ -18,6 +22,7 @@ pub const ParseError = error{
     ExpectedIdentifier,
     ExpectedAssign,
     InvalidProgram,
+    InvalidExpression,
 };
 
 pub const Parser = struct {
@@ -45,10 +50,9 @@ pub const Parser = struct {
 
         while (self.current_token.type != .eof) {
             const statement = try self.parseStatement();
-            statemets.append(statement) catch return ParseError.InvalidProgram;
+            statemets.append(statement.*) catch return ParseError.InvalidProgram;
             self.nextToken();
         }
-
         return Program{ .statemets = statemets };
     }
 
@@ -57,11 +61,11 @@ pub const Parser = struct {
         self.peek_token = self.lexer.GetNextToken();
     }
 
-    fn parseStatement(self: *Self) !Statement {
+    fn parseStatement(self: *Self) !*const Statement {
         return switch (self.current_token.type) {
-            .keyword_let => .{ .let = try self.parseLetStatement() },
-            .keyword_return => .{ .ret = try self.parseReturnStatement() },
-            else => unreachable,
+            .keyword_let => &Statement{ .let = try self.parseLetStatement() },
+            .keyword_return => &Statement{ .ret = try self.parseReturnStatement() },
+            else => &Statement{ .expression_statement = try self.parseExpressionStatement() },
         };
     }
 
@@ -104,13 +108,45 @@ pub const Parser = struct {
         const current_token = self.current_token;
         self.nextToken();
 
-        while (!self.current_token.type != .semicolon) {
+        while (self.current_token.type != .semicolon) {
             self.nextToken();
         }
 
         return &Return{
             .token = current_token,
             .return_value = null,
+        };
+    }
+
+    fn parseExpressionByPrefix(self: *Self, token: Token) !*const Expression {
+        return switch (token.type) {
+            .identifier => &Expression{ .identifier = self.parseIdentifier() },
+            else => return ParseError.InvalidExpression,
+        };
+    }
+
+    fn parseExpressionStatement(self: *Self) !*const ExpressionStatement {
+        const current_token = self.current_token;
+        const expression = try self.parseExpression(.lowest);
+        if (self.peek_token.type == .semicolon) {
+            self.nextToken();
+        }
+
+        return &ExpressionStatement{
+            .expression = expression,
+            .token = current_token,
+        };
+    }
+
+    fn parseExpression(self: *Self, precedence: Precedence) !*const Expression {
+        _ = precedence;
+        return try self.parseExpressionByPrefix(self.current_token);
+    }
+
+    fn parseIdentifier(self: *Self) *const Identifier {
+        return &Identifier{
+            .token = self.current_token,
+            .value = self.current_token.literal,
         };
     }
 };
@@ -121,6 +157,25 @@ test "ParseLet" {
         \\ let y = 10;
         \\ let foobar = 41241;
     ;
+    const allocator = std.testing.allocator;
+
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+    var parser = Parser.init(&lexer, &allocator);
+
+    var program = try parser.parse();
+    defer program.deinit();
+
+    try std.testing.expect(program.statemets.items.len == 3);
+}
+
+test "ParseReturn" {
+    const input =
+        \\ return 5;
+        \\ return 10;
+        \\ return 9421421;
+    ;
+
     const allocator = std.testing.allocator;
 
     var lexer = try Lexer.init(input, &allocator);
