@@ -51,10 +51,10 @@ pub const Parser = struct {
 
         while (self.current_token.type != .eof) {
             const statement = try self.parseStatement();
-            statemets.append(statement.*) catch return ParseError.InvalidProgram;
+            statemets.append(statement) catch return ParseError.InvalidProgram;
             self.nextToken();
         }
-        return Program{ .statemets = statemets };
+        return Program.init(&statemets);
     }
 
     fn nextToken(self: *Self) void {
@@ -62,11 +62,11 @@ pub const Parser = struct {
         self.peek_token = self.lexer.GetNextToken();
     }
 
-    fn parseStatement(self: *Self) !*const Statement {
+    fn parseStatement(self: *Self) !Statement {
         return switch (self.current_token.type) {
-            .keyword_let => &Statement{ .let = try self.parseLetStatement() },
-            .keyword_return => &Statement{ .ret = try self.parseReturnStatement() },
-            else => &Statement{ .expression_statement = try self.parseExpressionStatement() },
+            .keyword_let => Statement{ .let = try self.parseLetStatement() },
+            .keyword_return => Statement{ .ret = try self.parseReturnStatement() },
+            else => Statement{ .expression_statement = try self.parseExpressionStatement() },
         };
     }
 
@@ -78,14 +78,14 @@ pub const Parser = struct {
         return false;
     }
 
-    fn parseLetStatement(self: *Self) !*const Let {
+    fn parseLetStatement(self: *Self) !Let {
         const statement_token = self.current_token;
 
         if (!self.expectPeek(.identifier)) {
             return error.ExpectedIdentifier;
         }
 
-        const statement_name = &Identifier{
+        const statement_name = Identifier{
             .token = self.current_token,
             .value = self.current_token.literal,
         };
@@ -98,14 +98,14 @@ pub const Parser = struct {
             self.nextToken();
         }
 
-        return &Let{
+        return Let{
             .name = statement_name,
             .token = statement_token,
             .value = null,
         };
     }
 
-    pub fn parseReturnStatement(self: *Self) !*const Return {
+    pub fn parseReturnStatement(self: *Self) !Return {
         const current_token = self.current_token;
         self.nextToken();
 
@@ -113,47 +113,47 @@ pub const Parser = struct {
             self.nextToken();
         }
 
-        return &Return{
+        return Return{
             .token = current_token,
             .return_value = null,
         };
     }
 
-    fn parseExpressionByPrefix(self: *Self, token: Token) !*const Expression {
+    fn parseExpressionByPrefix(self: *Self, token: Token) !Expression {
         return switch (token.type) {
-            .identifier => &Expression{ .identifier = self.parseIdentifier() },
-            .int => &Expression{ .int_literal = try self.parseIntegerLiteral() },
+            .identifier => .{ .identifier = self.parseIdentifier() },
+            .int => .{ .int_literal = try self.parseIntegerLiteral() },
             else => return ParseError.InvalidExpression,
         };
     }
 
-    fn parseExpressionStatement(self: *Self) !*const ExpressionStatement {
+    fn parseExpressionStatement(self: *Self) !ExpressionStatement {
         const current_token = self.current_token;
         const expression = try self.parseExpression(.lowest);
         if (self.peek_token.type == .semicolon) {
             self.nextToken();
         }
 
-        return &ExpressionStatement{
+        return .{
             .expression = expression,
             .token = current_token,
         };
     }
 
-    fn parseExpression(self: *Self, precedence: Precedence) !*const Expression {
+    fn parseExpression(self: *Self, precedence: Precedence) !Expression {
         _ = precedence;
         return try self.parseExpressionByPrefix(self.current_token);
     }
 
-    fn parseIdentifier(self: *Self) *const Identifier {
-        return &Identifier{
+    fn parseIdentifier(self: *Self) Identifier {
+        return Identifier{
             .token = self.current_token,
             .value = self.current_token.literal,
         };
     }
 
-    fn parseIntegerLiteral(self: *Self) !*const IntegerLiteral {
-        return &IntegerLiteral{
+    fn parseIntegerLiteral(self: *Self) !IntegerLiteral {
+        return IntegerLiteral{
             .token = self.current_token,
             .value = try std.fmt.parseInt(i64, self.current_token.literal, 10),
         };
@@ -194,4 +194,21 @@ test "ParseReturn" {
     var program = try parser.parse();
     defer program.deinit();
     try std.testing.expect(program.statemets.items.len == 3);
+}
+
+test "ParseExpression" {
+    const input = "5; 10; 20;";
+
+    const allocator = std.testing.allocator;
+
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
+
+    for (program.statemets.items) |statement| {
+        try std.testing.expect(statement.expression_statement.token.type == .int);
+    }
 }

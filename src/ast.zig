@@ -10,25 +10,29 @@ pub const Program = struct {
 
     const Self = @This();
 
+    pub fn init(statements: *std.ArrayList(Statement)) Program {
+        return Program{ .statemets = statements.* };
+    }
+
     pub fn deinit(self: *Self) void {
         self.statemets.deinit();
     }
 };
 
 pub const Expression = union(enum) {
-    identifier: *const Identifier,
-    int_literal: *const IntegerLiteral,
+    identifier: Identifier,
+    int_literal: IntegerLiteral,
 };
 
 pub const Statement = union(enum) {
-    let: *const Let,
-    ret: *const Return,
-    expression_statement: *const ExpressionStatement,
+    let: Let,
+    ret: Return,
+    expression_statement: ExpressionStatement,
 };
 
 pub const Let = struct {
     token: Token,
-    name: *const Identifier,
+    name: Identifier,
     value: ?*Expression,
 
     const Self = @This();
@@ -59,4 +63,4 @@ pub const IntegerLiteral = struct {
     value: i64,
 };
 
-pub const ExpressionStatement = struct { token: Token, expression: *const Expression };
+pub const ExpressionStatement = struct { token: Token, expression: Expression };
