@@ -12,6 +12,7 @@ const Return = ast.Return;
 const Identifier = ast.Identifier;
 const Expression = ast.Expression;
 const ExpressionStatement = ast.ExpressionStatement;
+const PrefixExpression = ast.PrefixExpression;
 const IntegerLiteral = ast.IntegerLiteral;
 
 const Precedence = p.Precedence;
@@ -24,6 +25,7 @@ pub const ParseError = error{
     ExpectedAssign,
     InvalidProgram,
     InvalidExpression,
+    InvalidInteger,
 };
 
 pub const Parser = struct {
@@ -123,6 +125,7 @@ pub const Parser = struct {
         return switch (token.type) {
             .identifier => .{ .identifier = self.parseIdentifier() },
             .int => .{ .int_literal = try self.parseIntegerLiteral() },
+            .bang, .minus => .{ .prefix_expression = try self.parsePrefixExpression() },
             else => return ParseError.InvalidExpression,
         };
     }
@@ -153,9 +156,22 @@ pub const Parser = struct {
     }
 
     fn parseIntegerLiteral(self: *Self) !IntegerLiteral {
+        const value = std.fmt.parseInt(i64, self.current_token.literal, 10) catch return ParseError.InvalidInteger;
         return IntegerLiteral{
             .token = self.current_token,
-            .value = try std.fmt.parseInt(i64, self.current_token.literal, 10),
+            .value = value,
+        };
+    }
+
+    fn parsePrefixExpression(self: *Self) ParseError!PrefixExpression {
+        const current_token = self.current_token;
+        self.nextToken();
+        var expression = try self.parseExpression(.prefix);
+
+        return PrefixExpression{
+            .token = current_token,
+            .operator = current_token.literal,
+            .right = &expression,
         };
     }
 };
@@ -210,5 +226,25 @@ test "ParseExpression" {
 
     for (program.statemets.items) |statement| {
         try std.testing.expect(statement.expression_statement.token.type == .int);
+    }
+}
+
+test "ParsePrefix" {
+    const input =
+        \\ !5;
+        \\ !foobar;
+    ;
+
+    const allocator = std.testing.allocator;
+
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
+
+    for (program.statemets.items) |statement| {
+        try std.testing.expectEqualStrings(statement.expression_statement.expression.prefix_expression.operator, "!");
     }
 }
