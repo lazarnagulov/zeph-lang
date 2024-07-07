@@ -12,6 +12,7 @@ const Return = ast.Return;
 const Identifier = ast.Identifier;
 const Expression = ast.Expression;
 const ExpressionStatement = ast.ExpressionStatement;
+const IntegerLiteral = ast.IntegerLiteral;
 
 const Precedence = p.Precedence;
 const Lexer = l.Lexer;
@@ -121,6 +122,7 @@ pub const Parser = struct {
     fn parseExpressionByPrefix(self: *Self, token: Token) !*const Expression {
         return switch (token.type) {
             .identifier => &Expression{ .identifier = self.parseIdentifier() },
+            .int => &Expression{ .int_literal = try self.parseIntegerLiteral() },
             else => return ParseError.InvalidExpression,
         };
     }
@@ -147,6 +149,13 @@ pub const Parser = struct {
         return &Identifier{
             .token = self.current_token,
             .value = self.current_token.literal,
+        };
+    }
+
+    fn parseIntegerLiteral(self: *Self) !*const IntegerLiteral {
+        return &IntegerLiteral{
+            .token = self.current_token,
+            .value = try std.fmt.parseInt(i64, self.current_token.literal, 10),
         };
     }
 };
@@ -184,6 +193,5 @@ test "ParseReturn" {
 
     var program = try parser.parse();
     defer program.deinit();
-
     try std.testing.expect(program.statemets.items.len == 3);
 }
