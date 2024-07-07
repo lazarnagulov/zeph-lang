@@ -6,6 +6,7 @@ const ast = @import("ast.zig");
 const Program = ast.Program;
 const Statement = ast.Statement;
 const Let = ast.Let;
+const Return = ast.Return;
 const Identifier = ast.Identifier;
 const Expression = ast.Expression;
 
@@ -48,7 +49,7 @@ pub const Parser = struct {
             self.nextToken();
         }
 
-        return Program{ .statemets = &statemets };
+        return Program{ .statemets = statemets };
     }
 
     fn nextToken(self: *Self) void {
@@ -59,6 +60,7 @@ pub const Parser = struct {
     fn parseStatement(self: *Self) !Statement {
         return switch (self.current_token.type) {
             .keyword_let => .{ .let = try self.parseLetStatement() },
+            .keyword_return => .{ .ret = try self.parseReturnStatement() },
             else => unreachable,
         };
     }
@@ -94,7 +96,21 @@ pub const Parser = struct {
         return &Let{
             .name = statement_name,
             .token = statement_token,
-            .value = &Expression{ .token = statement_token },
+            .value = null,
+        };
+    }
+
+    pub fn parseReturnStatement(self: *Self) !*const Return {
+        const current_token = self.current_token;
+        self.nextToken();
+
+        while (!self.current_token.type != .semicolon) {
+            self.nextToken();
+        }
+
+        return &Return{
+            .token = current_token,
+            .return_value = null,
         };
     }
 };
@@ -114,9 +130,5 @@ test "ParseLet" {
     var program = try parser.parse();
     defer program.deinit();
 
-    std.debug.print("{}", .{program.statemets.getLast().let.name});
-
-    // std.testing.expectEqual(3, program.statemets.items.len);
-    _ = lexer.GetNextToken();
-    _ = program.statemets.*;
+    try std.testing.expect(program.statemets.items.len == 3);
 }

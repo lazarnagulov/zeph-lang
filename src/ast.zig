@@ -6,17 +6,9 @@ const Token = t.Token;
 pub const Node = union(enum) {};
 
 pub const Program = struct {
-    statemets: *std.ArrayList(Statement),
+    statemets: std.ArrayList(Statement),
 
     const Self = @This();
-
-    pub fn tokenLiteral(self: Self) []const u8 {
-        if (self.statemets.items.len > 0) {
-            return self.statemets[0].tokenLiteral();
-        } else {
-            return "";
-        }
-    }
 
     pub fn deinit(self: *Self) void {
         self.statemets.deinit();
@@ -24,23 +16,29 @@ pub const Program = struct {
 };
 
 pub const Expression = union(enum) {
-    token: Token,
+    token: *const Token,
 };
 
 pub const Statement = union(enum) {
     let: *const Let,
+    ret: *Return,
 };
 
 pub const Let = struct {
     token: Token,
     name: *const Identifier,
-    value: *const Expression,
+    value: ?*Expression,
 
     const Self = @This();
 
-    pub fn tokenLiteral(self: Self) []const u8 {
+    pub fn tokenLiteral(self: *const Self) []const u8 {
         return self.token.literal;
     }
+};
+
+pub const Return = struct {
+    token: Token,
+    return_value: ?*Expression,
 };
 
 pub const Identifier = struct {
@@ -49,7 +47,7 @@ pub const Identifier = struct {
 
     const Self = @This();
 
-    pub fn tokenLiteral(self: Self) []const u8 {
+    pub fn tokenLiteral(self: *Self) []const u8 {
         return self.token.literal;
     }
 };
