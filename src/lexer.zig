@@ -121,7 +121,7 @@ pub const Lexer = struct {
 
     fn readIdentifier(self: *Self) []const u8 {
         const position = self.position;
-        while (std.ascii.isAlphabetic(self.char)) {
+        while (std.ascii.isAlphanumeric(self.char) or self.char == '_') {
             self.readChar();
         }
         return self.input[position..self.position];

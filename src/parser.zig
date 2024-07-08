@@ -17,6 +17,7 @@ const Expression = ast.Expression;
 const ExpressionStatement = ast.ExpressionStatement;
 const PrefixExpression = ast.PrefixExpression;
 const InfixExpression = ast.InfixExpression;
+const CallExpression = ast.CallExpression;
 const IfExpression = ast.IfExpression;
 const BlockStatement = ast.BlockStatement;
 
@@ -104,18 +105,23 @@ pub const Parser = struct {
             .value = self.current_token.literal,
         };
 
+        std.log.warn("ident: {s}", .{statement_name.tokenLiteral()});
+
         if (!self.expectPeek(.assign)) {
             return error.ExpectedAssign;
         }
 
-        while (self.current_token.type != .semicolon) {
+        self.nextToken();
+        const value = try self.parseExpression(.lowest);
+
+        if (self.peek_token.type == .semicolon) {
             self.nextToken();
         }
 
         return Let{
             .name = statement_name,
             .token = statement_token,
-            .value = null,
+            .value = &value,
         };
     }
 
@@ -123,13 +129,15 @@ pub const Parser = struct {
         const current_token = self.current_token;
         self.nextToken();
 
-        while (self.current_token.type != .semicolon) {
+        const return_value = try self.parseExpression(.lowest);
+
+        if (self.peek_token.type == .semicolon) {
             self.nextToken();
         }
 
         return Return{
             .token = current_token,
-            .return_value = null,
+            .return_value = &return_value,
         };
     }
 
@@ -153,6 +161,7 @@ pub const Parser = struct {
         self.nextToken();
         return switch (token.type) {
             .plus, .minus, .asterisk, .slash, .equal, .not_equal, .gt, .lt, .geq, .leq => Expression{ .infix_expression = try self.parseInfixExpression(left) },
+            .left_paren => .{ .call_expression = try self.parseCallExpression(left) },
             else => ParseError.InvalidInfix,
         };
     }
@@ -179,6 +188,38 @@ pub const Parser = struct {
         return left_expression;
     }
 
+    fn parseCallExpression(self: *Self, function: *Expression) !CallExpression {
+        const current_token = self.current_token;
+        var arguments = std.ArrayList(Expression).init(self.allocator.*);
+        try self.parseCallArguments(&arguments);
+
+        return CallExpression{
+            .arguments = arguments,
+            .token = current_token,
+            .function = function,
+        };
+    }
+
+    fn parseCallArguments(self: *Self, arguments: *std.ArrayList(Expression)) ParseError!void {
+        if (self.peek_token.type == .right_paren) {
+            self.nextToken();
+            return;
+        }
+
+        self.nextToken();
+        try arguments.*.append(try self.parseExpression(.lowest));
+
+        while (self.peek_token.type == .comma) {
+            self.nextToken();
+            self.nextToken();
+            try arguments.*.append(try self.parseExpression(.lowest));
+        }
+
+        if (!self.expectPeek(.right_paren)) {
+            return ParseError.ExpectedRightParen;
+        }
+    }
+
     fn parseIdentifier(self: *Self) Identifier {
         return Identifier{
             .token = self.current_token,
@@ -203,13 +244,13 @@ pub const Parser = struct {
 
     fn parseFunctionLiteral(self: *Self) ParseError!FunctionLiteral {
         const current_token = self.current_token;
-        if (self.expectPeek(.left_paren)) {
+        if (!self.expectPeek(.left_paren)) {
             return ParseError.ExpectedLeftParen;
         }
         var parameters = std.ArrayList(Identifier).init(self.allocator.*);
         try self.parseFunctionParameters(&parameters);
 
-        if (self.expectPeek(.colon)) {
+        if (!self.expectPeek(.colon)) {
             return ParseError.ExpectedColon;
         }
 
@@ -242,7 +283,7 @@ pub const Parser = struct {
             });
         }
 
-        if (self.expectPeek(.right_paren)) {
+        if (!self.expectPeek(.right_paren)) {
             return ParseError.ExpectedRightParen;
         }
     }
@@ -343,7 +384,7 @@ pub const Parser = struct {
 test "ParseLet" {
     const input =
         \\ let x = 5;
-        \\ let y = 10;
+        \\ let y = 15 + 20;
         \\ let foobar = 41241;
     ;
     const allocator = std.testing.allocator;
@@ -439,10 +480,23 @@ test "ParseIf" {
 
 test "ParseFunctionLiteral" {
     const input =
-        \\fn(a,b,c):
+        \\let my_function = fn(a,b,c):
         \\    return a + b + c;
         \\end;
     ;
+
+    const allocator = std.testing.allocator;
+
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
+}
+
+test "ParseCall" {
+    const input = "add(a,b,c);";
 
     const allocator = std.testing.allocator;
 

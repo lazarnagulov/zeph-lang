@@ -25,6 +25,7 @@ pub const Expression = union(enum) {
     function_literal: FunctionLiteral,
     boolean: Boolean,
     prefix_expression: PrefixExpression,
+    call_expression: CallExpression,
     infix_expression: InfixExpression,
     if_expression: *IfExpression,
 };
@@ -38,7 +39,7 @@ pub const Statement = union(enum) {
 pub const Let = struct {
     token: Token,
     name: Identifier,
-    value: ?*Expression,
+    value: *const Expression,
 
     const Self = @This();
 
@@ -49,7 +50,7 @@ pub const Let = struct {
 
 pub const Return = struct {
     token: Token,
-    return_value: ?*Expression,
+    return_value: *const Expression,
 };
 
 pub const Identifier = struct {
@@ -58,7 +59,7 @@ pub const Identifier = struct {
 
     const Self = @This();
 
-    pub fn tokenLiteral(self: *Self) []const u8 {
+    pub fn tokenLiteral(self: *const Self) []const u8 {
         return self.token.literal;
     }
 };
@@ -99,6 +100,12 @@ pub const IfExpression = struct {
     condition: Expression,
     consequence: BlockStatement,
     alternative: ?BlockStatement,
+};
+
+pub const CallExpression = struct {
+    token: Token,
+    function: *const Expression,
+    arguments: std.ArrayList(Expression),
 };
 
 pub const BlockStatement = struct {
