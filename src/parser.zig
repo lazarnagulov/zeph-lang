@@ -105,8 +105,6 @@ pub const Parser = struct {
             .value = self.current_token.literal,
         };
 
-        std.log.warn("ident: {s}", .{statement_name.tokenLiteral()});
-
         if (!self.expectPeek(.assign)) {
             return error.ExpectedAssign;
         }
@@ -400,6 +398,7 @@ test "ParseLet" {
 }
 
 test "ParseReturn" {
+    //TODO: return;
     const input =
         \\ return 5;
         \\ return 10;
