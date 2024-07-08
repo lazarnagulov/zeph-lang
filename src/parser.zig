@@ -250,15 +250,10 @@ pub const Parser = struct {
             return ParseError.ExpectedColon;
         }
 
-        const consequence = try self.parseBlockStatement();
+        const consequence = try self.parseBlockStatementOnDelimiter(.keyword_else);
         var alternative: ?BlockStatement = null;
+
         if (self.current_token.type == .keyword_else) {
-            self.nextToken();
-
-            if (self.current_token.type != .colon) {
-                return ParseError.ExpectedColon;
-            }
-
             alternative = try self.parseBlockStatement();
         }
 
@@ -270,34 +265,30 @@ pub const Parser = struct {
         };
     }
 
-    fn parseBlockStatement(self: *Self) !BlockStatement {
+    fn parseBlockStatementOnDelimiter(self: *Self, delimter: TokenType) !BlockStatement {
         const current_token = self.current_token;
         var statements = std.ArrayList(Statement).init(self.allocator.*);
 
         self.nextToken();
 
-        while (self.current_token.type != .keyword_end and self.current_token.type != .eof) {
+        while (self.current_token.type != .keyword_end and self.current_token.type != delimter and self.current_token.type != .eof) {
             const statement = try self.parseStatement();
             try statements.append(statement);
             self.nextToken();
         }
 
-        if (self.current_token.type != .keyword_end) {
+        if (self.current_token.type != delimter and self.current_token.type != .keyword_end) {
             return ParseError.ExpectedEnd;
         }
-
-        self.nextToken();
-
-        if (self.current_token.type != .semicolon) {
-            return ParseError.ExpectedSemicolon;
-        }
-
-        self.nextToken();
 
         return BlockStatement{
             .token = current_token,
             .statements = statements,
         };
+    }
+
+    fn parseBlockStatement(self: *Self) !BlockStatement {
+        return self.parseBlockStatementOnDelimiter(.keyword_end);
     }
 };
 
@@ -376,7 +367,18 @@ pub const Parser = struct {
 // }
 
 test "ParseIf" {
-    const input = "if(a>b): let a = 5; end; else: let c = 10; end;";
+    const input =
+        \\if (a < b):
+        \\    return false;
+        \\else
+        \\   if (b == a):
+        \\      return false;
+        \\   else
+        \\      return true;
+        \\   end;
+        \\end;
+    ;
+
     const allocator = std.testing.allocator;
 
     var lexer = try Lexer.init(input, &allocator);
@@ -385,6 +387,4 @@ test "ParseIf" {
     var parser = Parser.init(&lexer, &allocator);
     var program = try parser.parse();
     defer program.deinit();
-
-    std.debug.print("{}", .{program.statemets.items[0]});
 }
