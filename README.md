@@ -4,8 +4,8 @@
 
 ### IF expression
 - Must end with keyword **end**, can have **else**:
-```ruby
-if (a < b):
+```
+let result = if (a < b):
     return false;
 else
     if (b == a):
@@ -15,4 +15,12 @@ else
     end;
 end;
 ```
+
+### Functions
+```
+let my_function = fn(a,b,c):
+    return a + b + c;
+end;
+```
+
 

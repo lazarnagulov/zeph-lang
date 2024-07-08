@@ -11,6 +11,7 @@ const Let = ast.Let;
 const Return = ast.Return;
 const Identifier = ast.Identifier;
 const IntegerLiteral = ast.IntegerLiteral;
+const FunctionLiteral = ast.FunctionLiteral;
 const Boolean = ast.Boolean;
 const Expression = ast.Expression;
 const ExpressionStatement = ast.ExpressionStatement;
@@ -142,6 +143,7 @@ pub const Parser = struct {
                 var if_expression = try self.parseIfExpression();
                 break :blk .{ .if_expression = &if_expression };
             },
+            .keyword_function => .{ .function_literal = try self.parseFunctionLiteral() },
             .left_paren => try self.parseGroupExpression(),
             else => return ParseError.InvalidExpression,
         };
@@ -197,6 +199,52 @@ pub const Parser = struct {
             .token = self.current_token,
             .value = self.current_token.type == .keyword_true,
         };
+    }
+
+    fn parseFunctionLiteral(self: *Self) ParseError!FunctionLiteral {
+        const current_token = self.current_token;
+        if (self.expectPeek(.left_paren)) {
+            return ParseError.ExpectedLeftParen;
+        }
+        var parameters = std.ArrayList(Identifier).init(self.allocator.*);
+        try self.parseFunctionParameters(&parameters);
+
+        if (self.expectPeek(.colon)) {
+            return ParseError.ExpectedColon;
+        }
+
+        const body = try self.parseBlockStatement();
+
+        return FunctionLiteral{
+            .body = body,
+            .parameters = parameters,
+            .token = current_token,
+        };
+    }
+
+    fn parseFunctionParameters(self: *Self, parameters: *std.ArrayList(Identifier)) !void {
+        if (self.peek_token.type == .right_paren) {
+            self.nextToken();
+            return;
+        }
+        self.nextToken();
+        try parameters.*.append(Identifier{
+            .token = self.current_token,
+            .value = self.current_token.literal,
+        });
+
+        while (self.peek_token.type == .comma) {
+            self.nextToken();
+            self.nextToken();
+            try parameters.*.append(Identifier{
+                .token = self.current_token,
+                .value = self.current_token.literal,
+            });
+        }
+
+        if (self.expectPeek(.right_paren)) {
+            return ParseError.ExpectedRightParen;
+        }
     }
 
     fn parsePrefixExpression(self: *Self) ParseError!PrefixExpression {
@@ -292,79 +340,79 @@ pub const Parser = struct {
     }
 };
 
-// test "ParseLet" {
-//     const input =
-//         \\ let x = 5;
-//         \\ let y = 10;
-//         \\ let foobar = 41241;
-//     ;
-//     const allocator = std.testing.allocator;
+test "ParseLet" {
+    const input =
+        \\ let x = 5;
+        \\ let y = 10;
+        \\ let foobar = 41241;
+    ;
+    const allocator = std.testing.allocator;
 
-//     var lexer = try Lexer.init(input, &allocator);
-//     defer lexer.deinit();
-//     var parser = Parser.init(&lexer, &allocator);
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+    var parser = Parser.init(&lexer, &allocator);
 
-//     var program = try parser.parse();
-//     defer program.deinit();
+    var program = try parser.parse();
+    defer program.deinit();
 
-//     try std.testing.expect(program.statemets.items.len == 3);
-// }
+    try std.testing.expect(program.statemets.items.len == 3);
+}
 
-// test "ParseReturn" {
-//     const input =
-//         \\ return 5;
-//         \\ return 10;
-//         \\ return 9421421;
-//     ;
+test "ParseReturn" {
+    const input =
+        \\ return 5;
+        \\ return 10;
+        \\ return 9421421;
+    ;
 
-//     const allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
-//     var lexer = try Lexer.init(input, &allocator);
-//     defer lexer.deinit();
-//     var parser = Parser.init(&lexer, &allocator);
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+    var parser = Parser.init(&lexer, &allocator);
 
-//     var program = try parser.parse();
-//     defer program.deinit();
-//     try std.testing.expect(program.statemets.items.len == 3);
-// }
+    var program = try parser.parse();
+    defer program.deinit();
+    try std.testing.expect(program.statemets.items.len == 3);
+}
 
-// test "ParseExpression" {
-//     const input = "5; 10; 20;";
+test "ParseExpression" {
+    const input = "5; 10; 20;";
 
-//     const allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
-//     var lexer = try Lexer.init(input, &allocator);
-//     defer lexer.deinit();
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
 
-//     var parser = Parser.init(&lexer, &allocator);
-//     var program = try parser.parse();
-//     defer program.deinit();
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
 
-//     for (program.statemets.items) |statement| {
-//         try std.testing.expect(statement.expression_statement.token.type == .int);
-//     }
-// }
+    for (program.statemets.items) |statement| {
+        try std.testing.expect(statement.expression_statement.token.type == .int);
+    }
+}
 
-// test "ParsePrefix" {
-//     const input =
-//         \\ !5;
-//         \\ -foobar;
-//         \\ -5;
-//     ;
+test "ParsePrefix" {
+    const input =
+        \\ !5;
+        \\ -foobar;
+        \\ -5;
+    ;
 
-//     const allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
-//     var lexer = try Lexer.init(input, &allocator);
-//     defer lexer.deinit();
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
 
-//     var parser = Parser.init(&lexer, &allocator);
-//     var program = try parser.parse();
-//     defer program.deinit();
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
 
-//     try std.testing.expectEqualStrings(program.statemets.items[0].expression_statement.expression.prefix_expression.operator, "!");
-//     try std.testing.expectEqualStrings(program.statemets.items[1].expression_statement.expression.prefix_expression.operator, "-");
-//     try std.testing.expectEqualStrings(program.statemets.items[2].expression_statement.expression.prefix_expression.operator, "-");
-// }
+    try std.testing.expectEqualStrings(program.statemets.items[0].expression_statement.expression.prefix_expression.operator, "!");
+    try std.testing.expectEqualStrings(program.statemets.items[1].expression_statement.expression.prefix_expression.operator, "-");
+    try std.testing.expectEqualStrings(program.statemets.items[2].expression_statement.expression.prefix_expression.operator, "-");
+}
 
 test "ParseIf" {
     const input =
@@ -376,6 +424,23 @@ test "ParseIf" {
         \\   else
         \\      return true;
         \\   end;
+        \\end;
+    ;
+
+    const allocator = std.testing.allocator;
+
+    var lexer = try Lexer.init(input, &allocator);
+    defer lexer.deinit();
+
+    var parser = Parser.init(&lexer, &allocator);
+    var program = try parser.parse();
+    defer program.deinit();
+}
+
+test "ParseFunctionLiteral" {
+    const input =
+        \\fn(a,b,c):
+        \\    return a + b + c;
         \\end;
     ;
 

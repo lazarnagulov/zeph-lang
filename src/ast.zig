@@ -22,6 +22,7 @@ pub const Program = struct {
 pub const Expression = union(enum) {
     identifier: Identifier,
     int_literal: IntegerLiteral,
+    function_literal: FunctionLiteral,
     boolean: Boolean,
     prefix_expression: PrefixExpression,
     infix_expression: InfixExpression,
@@ -65,6 +66,12 @@ pub const Identifier = struct {
 pub const IntegerLiteral = struct {
     token: Token,
     value: i64,
+};
+
+pub const FunctionLiteral = struct {
+    token: Token,
+    parameters: std.ArrayList(Identifier),
+    body: BlockStatement,
 };
 
 pub const Boolean = struct {
