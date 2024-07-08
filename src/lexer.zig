@@ -13,8 +13,8 @@ pub const Lexer = struct {
 
     const Self = @This();
 
-    pub fn init(input: []const u8, allocator: *const std.mem.Allocator) !Lexer {
-        var keywords_map = std.StringHashMap(TokenType).init(allocator.*);
+    pub fn init(input: []const u8, allocator: std.mem.Allocator) !Lexer {
+        var keywords_map = std.StringHashMap(TokenType).init(allocator);
         try initKeywords(&keywords_map);
 
         var lexer = Lexer{ .input = input, .position = 0, .read_position = 0, .char = '0', .keywords = keywords_map };
@@ -197,8 +197,10 @@ test "NextToken" {
         Token.init(.eof, "eof"),
     };
 
-    const allocator = std.testing.allocator;
-    var lexer = try Lexer.init(input, &allocator);
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
+
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
 
     for (result) |token| {

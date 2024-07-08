@@ -45,11 +45,11 @@ pub const Parser = struct {
     lexer: *Lexer,
     current_token: Token,
     peek_token: Token,
-    allocator: *const std.mem.Allocator,
+    allocator: std.mem.Allocator,
 
     const Self = @This();
 
-    pub fn init(lexer: *Lexer, allocator: *const std.mem.Allocator) Parser {
+    pub fn init(lexer: *Lexer, allocator: std.mem.Allocator) Parser {
         const current_token = lexer.GetNextToken();
         const peek_token = lexer.GetNextToken();
 
@@ -62,7 +62,7 @@ pub const Parser = struct {
     }
 
     pub fn parse(self: *Self) !Program {
-        var statemets = std.ArrayList(Statement).init(self.allocator.*);
+        var statemets = std.ArrayList(Statement).init(self.allocator);
 
         while (self.current_token.type != .eof) {
             const statement = try self.parseStatement();
@@ -188,7 +188,7 @@ pub const Parser = struct {
 
     fn parseCallExpression(self: *Self, function: *Expression) !CallExpression {
         const current_token = self.current_token;
-        var arguments = std.ArrayList(Expression).init(self.allocator.*);
+        var arguments = std.ArrayList(Expression).init(self.allocator);
         try self.parseCallArguments(&arguments);
 
         return CallExpression{
@@ -245,7 +245,7 @@ pub const Parser = struct {
         if (!self.expectPeek(.left_paren)) {
             return ParseError.ExpectedLeftParen;
         }
-        var parameters = std.ArrayList(Identifier).init(self.allocator.*);
+        var parameters = std.ArrayList(Identifier).init(self.allocator);
         try self.parseFunctionParameters(&parameters);
 
         if (!self.expectPeek(.colon)) {
@@ -354,7 +354,7 @@ pub const Parser = struct {
 
     fn parseBlockStatementOnDelimiter(self: *Self, delimter: TokenType) !BlockStatement {
         const current_token = self.current_token;
-        var statements = std.ArrayList(Statement).init(self.allocator.*);
+        var statements = std.ArrayList(Statement).init(self.allocator);
 
         self.nextToken();
 
@@ -385,11 +385,12 @@ test "ParseLet" {
         \\ let y = 15 + 20;
         \\ let foobar = 41241;
     ;
-    const allocator = std.testing.allocator;
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
 
-    var lexer = try Lexer.init(input, &allocator);
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
-    var parser = Parser.init(&lexer, &allocator);
+    var parser = Parser.init(&lexer, allocator.allocator());
 
     var program = try parser.parse();
     defer program.deinit();
@@ -405,11 +406,12 @@ test "ParseReturn" {
         \\ return 9421421;
     ;
 
-    const allocator = std.testing.allocator;
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
 
-    var lexer = try Lexer.init(input, &allocator);
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
-    var parser = Parser.init(&lexer, &allocator);
+    var parser = Parser.init(&lexer, allocator.allocator());
 
     var program = try parser.parse();
     defer program.deinit();
@@ -419,12 +421,13 @@ test "ParseReturn" {
 test "ParseExpression" {
     const input = "5; 10; 20;";
 
-    const allocator = std.testing.allocator;
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
 
-    var lexer = try Lexer.init(input, &allocator);
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
 
-    var parser = Parser.init(&lexer, &allocator);
+    var parser = Parser.init(&lexer, allocator.allocator());
     var program = try parser.parse();
     defer program.deinit();
 
@@ -440,12 +443,13 @@ test "ParsePrefix" {
         \\ -5;
     ;
 
-    const allocator = std.testing.allocator;
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
 
-    var lexer = try Lexer.init(input, &allocator);
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
 
-    var parser = Parser.init(&lexer, &allocator);
+    var parser = Parser.init(&lexer, allocator.allocator());
     var program = try parser.parse();
     defer program.deinit();
 
@@ -467,12 +471,13 @@ test "ParseIf" {
         \\end;
     ;
 
-    const allocator = std.testing.allocator;
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
 
-    var lexer = try Lexer.init(input, &allocator);
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
 
-    var parser = Parser.init(&lexer, &allocator);
+    var parser = Parser.init(&lexer, allocator.allocator());
     var program = try parser.parse();
     defer program.deinit();
 }
@@ -484,12 +489,13 @@ test "ParseFunctionLiteral" {
         \\end;
     ;
 
-    const allocator = std.testing.allocator;
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
 
-    var lexer = try Lexer.init(input, &allocator);
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
 
-    var parser = Parser.init(&lexer, &allocator);
+    var parser = Parser.init(&lexer, allocator.allocator());
     var program = try parser.parse();
     defer program.deinit();
 }
@@ -497,12 +503,13 @@ test "ParseFunctionLiteral" {
 test "ParseCall" {
     const input = "add(a,b,c);";
 
-    const allocator = std.testing.allocator;
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
 
-    var lexer = try Lexer.init(input, &allocator);
+    var lexer = try Lexer.init(input, allocator.allocator());
     defer lexer.deinit();
 
-    var parser = Parser.init(&lexer, &allocator);
+    var parser = Parser.init(&lexer, allocator.allocator());
     var program = try parser.parse();
     defer program.deinit();
 }
