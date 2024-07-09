@@ -69,6 +69,7 @@ pub const Parser = struct {
             statemets.append(statement) catch return ParseError.InvalidProgram;
             self.nextToken();
         }
+
         return Program.init(&statemets);
     }
 
@@ -344,7 +345,8 @@ pub const Parser = struct {
             return ParseError.ExpectedLeftParen;
         }
 
-        const condition = try self.parseExpression(.lowest);
+        const condition = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        condition.* = try self.parseExpression(.lowest);
         if (self.current_token.type != .right_paren) {
             return ParseError.ExpectedRightParen;
         }
@@ -369,7 +371,6 @@ pub const Parser = struct {
     }
 
     fn parseBlockStatementOnDelimiter(self: *Self, delimter: TokenType) !BlockStatement {
-        const current_token = self.current_token;
         var statements = std.ArrayList(Statement).init(self.allocator);
 
         self.nextToken();
@@ -385,13 +386,12 @@ pub const Parser = struct {
         }
 
         return BlockStatement{
-            .token = current_token,
             .statements = statements,
         };
     }
 
     fn parseBlockStatement(self: *Self) !BlockStatement {
-        return self.parseBlockStatementOnDelimiter(.keyword_end);
+        return try self.parseBlockStatementOnDelimiter(.keyword_end);
     }
 };
 
@@ -472,6 +472,24 @@ test "ParsePrefix" {
     try std.testing.expectEqualStrings(program.statemets.items[0].expression_statement.expression.prefix_expression.operator, "!");
     try std.testing.expectEqualStrings(program.statemets.items[1].expression_statement.expression.prefix_expression.operator, "-");
     try std.testing.expectEqualStrings(program.statemets.items[2].expression_statement.expression.prefix_expression.operator, "-");
+}
+
+test "SegIf" {
+    const input =
+        \\ if (2 > 1):
+        \\      5;
+        \\ end;
+    ;
+
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
+
+    var lexer = try Lexer.init(input, allocator.allocator());
+    defer lexer.deinit();
+
+    var parser = Parser.init(&lexer, allocator.allocator());
+    var program = try parser.parse();
+    defer program.deinit();
 }
 
 test "ParseIf" {

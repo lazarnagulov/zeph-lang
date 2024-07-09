@@ -6,14 +6,13 @@ const Node = ast.Node;
 const Program = ast.Program;
 const Expression = ast.Expression;
 const Statement = ast.Statement;
+const IfExpression = ast.IfExpression;
+const BlockStatement = ast.BlockStatement;
 
 const Object = o.Object;
 const Integer = o.Integer;
 const Boolean = o.Boolean;
 const Null = o.Null;
-
-const Lexer = @import("lexer.zig").Lexer;
-const Parser = @import("parser.zig").Parser;
 
 const EvaluationError = @import("evaluator_error.zig").EvaluationError;
 
@@ -27,12 +26,13 @@ pub const Evaluator = struct {
     }
 
     pub fn evalProgram(self: *Self, program: *Program) !*const Object {
-        var result: *const Object = &Object{ .null_val = Null{} };
+        var result: Object = Object{ .null_val = Null{} };
         for (program.statemets.items) |statement| {
             const evaluated = try self.evalStatement(&statement);
-            result = evaluated;
+            result = evaluated.*;
+            std.debug.print("result: {}", .{result});
         }
-        return result;
+        return &result;
     }
 
     fn evalNode(self: *Self, node: Node) !*const Object {
@@ -45,6 +45,7 @@ pub const Evaluator = struct {
 
     fn evalStatement(self: *Self, statement: *const Statement) !*const Object {
         return switch (statement.*) {
+            .block_statement => |block_statement| self.evalBlockStatement(block_statement),
             .expression_statement => |expression_statement| self.evalExpression(expression_statement.expression),
             else => EvaluationError.InvalidStatement,
         };
@@ -63,8 +64,43 @@ pub const Evaluator = struct {
                 const right = try self.evalExpression(infix_expression.right);
                 break :blk self.evalInfixExpression(infix_expression.operator, left, right);
             },
-            else => EvaluationError.InvalidExpression,
+            .if_expression => |if_expression| blk: {
+                const result = try self.evalIfExpression(if_expression);
+                break :blk result;
+            },
+            else => blk: {
+                break :blk EvaluationError.InvalidExpression;
+            },
         };
+    }
+
+    fn evalIfExpression(self: *Self, if_expression: *IfExpression) EvaluationError!*const Object {
+        //const condition = try self.evalExpression(if_expression.*.condition);
+
+        if (true) {
+            return try self.evalBlockStatement(if_expression.consequence);
+        } else if (if_expression.alternative) |alternative| {
+            return try self.evalBlockStatement(alternative);
+        } else {
+            return &Object{ .null_val = Null{} };
+        }
+    }
+
+    fn isThruty(obj: *const Object) bool {
+        return switch (obj.*) {
+            .boolean => |boolean| boolean.value,
+            .null_val => false,
+            else => true,
+        };
+    }
+
+    fn evalBlockStatement(self: *Self, block: BlockStatement) EvaluationError!*const Object {
+        var result = &Object{ .null_val = Null{} };
+        for (block.statements.items) |statement| {
+            const evaluted = try self.evalStatement(&statement);
+            result = evaluted;
+        }
+        return result;
     }
 
     fn evalInfixExpression(self: *Self, operator: []const u8, left: *const Object, right: *const Object) !*const Object {

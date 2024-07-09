@@ -15,17 +15,17 @@ pub fn start() !void {
     var writer = std.io.bufferedWriter(stdout.writer());
 
     var buf: [1024]u8 = undefined;
+    var buf_reader = reader.reader();
     var buf_writer = writer.writer();
 
     while (true) {
         try buf_writer.print("\n>> ", .{});
         try writer.flush();
 
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
 
-        const line = try reader.reader().readUntilDelimiterOrEof(&buf, '\n');
+        const line = try buf_reader.readUntilDelimiterOrEof(&buf, '\n');
         var lexer = Lexer.init(line.?, arena.allocator()) catch |err| {
             std.debug.print("Lexer error: {}", .{err});
             continue;
@@ -43,12 +43,14 @@ pub fn start() !void {
             std.debug.print("Evaluator error: {}", .{err});
             continue;
         };
+        _ = evaluated;
+        // std.debug.print("test: {}", .{evaluated});
 
-        switch (evaluated.*) {
-            .integer => |integer| try buf_writer.print("{}", .{integer.value}),
-            .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),
-            .null_val => |_| try buf_writer.print("null", .{}),
-        }
-        try writer.flush();
+        //     switch (evaluated.*) {
+        //         .integer => |integer| try buf_writer.print("{}", .{integer.value}),
+        //         .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),
+        //         .null_val => |_| try buf_writer.print("null", .{}),
+        //     }
+        //     try writer.flush();
     }
 }

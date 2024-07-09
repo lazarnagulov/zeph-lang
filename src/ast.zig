@@ -38,6 +38,7 @@ pub const Statement = union(enum) {
     let: Let,
     ret: Return,
     expression_statement: ExpressionStatement,
+    block_statement: BlockStatement,
 };
 
 pub const Let = struct {
@@ -101,7 +102,7 @@ pub const InfixExpression = struct {
 
 pub const IfExpression = struct {
     token: Token,
-    condition: Expression,
+    condition: *Expression,
     consequence: BlockStatement,
     alternative: ?BlockStatement,
 };
@@ -113,6 +114,5 @@ pub const CallExpression = struct {
 };
 
 pub const BlockStatement = struct {
-    token: Token,
     statements: std.ArrayList(Statement),
 };
