@@ -58,7 +58,77 @@ pub const Evaluator = struct {
                 const right = try self.evalExpression(prefix_expression.right);
                 break :blk self.evalPrefixExpression(prefix_expression.operator, right);
             },
+            .infix_expression => |infix_expression| blk: {
+                const left = try self.evalExpression(infix_expression.left);
+                const right = try self.evalExpression(infix_expression.right);
+                break :blk self.evalInfixExpression(infix_expression.operator, left, right);
+            },
             else => EvaluationError.InvalidExpression,
+        };
+    }
+
+    fn evalInfixExpression(self: *Self, operator: []const u8, left: *const Object, right: *const Object) !*const Object {
+        return switch (left.*) {
+            .integer => |left_integer| blk: {
+                switch (right.*) {
+                    .integer => |right_integer| break :blk self.evalIntegerInfixExpression(operator, &left_integer, &right_integer),
+                    else => break :blk EvaluationError.InvalidOperator,
+                }
+            },
+            .boolean => |left_boolean| blk: {
+                switch (right.*) {
+                    .boolean => |right_boolean| break :blk self.evalBooleanInfixExpression(operator, &left_boolean, &right_boolean),
+                    else => break :blk EvaluationError.InvalidOperator,
+                }
+            },
+            else => EvaluationError.InvalidOperator,
+        };
+    }
+
+    fn evalBooleanInfixExpression(self: *Self, operator: []const u8, left: *const Boolean, right: *const Boolean) EvaluationError!*Object {
+        return try switch (operator[0]) {
+            '=' => blk: {
+                if (operator.len == 2 and operator[1] == '=') {
+                    break :blk Boolean.init(&self.allocator, left.*.value == right.*.value);
+                }
+                break :blk EvaluationError.InvalidOperator;
+            },
+            '!' => blk: {
+                if (operator.len == 2 and operator[1] == '=') {
+                    break :blk Boolean.init(&self.allocator, left.*.value != right.*.value);
+                }
+                break :blk EvaluationError.InvalidOperator;
+            },
+            else => EvaluationError.InvalidOperator,
+        };
+    }
+
+    fn evalIntegerInfixExpression(self: *Self, operator: []const u8, left: *const Integer, right: *const Integer) EvaluationError!*Object {
+        return try switch (operator[0]) {
+            '+' => Integer.init(&self.allocator, left.*.value + right.*.value),
+            '-' => Integer.init(&self.allocator, left.*.value - right.*.value),
+            '*' => Integer.init(&self.allocator, left.*.value * right.*.value),
+            '/' => Integer.init(&self.allocator, @divFloor(left.*.value, right.*.value)),
+            '<' => Boolean.init(&self.allocator, left.*.value < right.*.value),
+            '>' => blk: {
+                if (operator.len == 2 and operator[1] == '=') {
+                    break :blk Boolean.init(&self.allocator, left.*.value >= right.*.value);
+                }
+                break :blk Boolean.init(&self.allocator, left.*.value > right.*.value);
+            },
+            '=' => blk: {
+                if (operator.len == 2 and operator[1] == '=') {
+                    break :blk Boolean.init(&self.allocator, left.*.value == right.*.value);
+                }
+                break :blk EvaluationError.InvalidOperator;
+            },
+            '!' => blk: {
+                if (operator.len == 2 and operator[1] == '=') {
+                    break :blk Boolean.init(&self.allocator, left.*.value != right.*.value);
+                }
+                break :blk EvaluationError.InvalidOperator;
+            },
+            else => EvaluationError.InvalidOperator,
         };
     }
 

@@ -15,7 +15,6 @@ pub fn start() !void {
     var writer = std.io.bufferedWriter(stdout.writer());
 
     var buf: [1024]u8 = undefined;
-    var buf_reader = reader.reader();
     var buf_writer = writer.writer();
 
     while (true) {
@@ -26,8 +25,8 @@ pub fn start() !void {
         var arena = std.heap.ArenaAllocator.init(gpa.allocator());
         defer arena.deinit();
 
-        const line = try buf_reader.readUntilDelimiter(&buf, '\n');
-        var lexer = Lexer.init(line, arena.allocator()) catch |err| {
+        const line = try reader.reader().readUntilDelimiterOrEof(&buf, '\n');
+        var lexer = Lexer.init(line.?, arena.allocator()) catch |err| {
             std.debug.print("Lexer error: {}", .{err});
             continue;
         };

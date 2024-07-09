@@ -327,6 +327,7 @@ pub const Parser = struct {
 
     fn parseGroupExpression(self: *Self) ParseError!Expression {
         self.nextToken();
+
         const expression = self.parseExpression(.lowest);
 
         if (!self.expectPeek(.right_paren)) {
