@@ -1,7 +1,11 @@
 const std = @import("std");
 const l = @import("lexer.zig");
+const p = @import("parser.zig");
+const e = @import("evaluator.zig");
 
 const Lexer = l.Lexer;
+const Parser = p.Parser;
+const Evaluator = e.Evaluator;
 
 pub fn start() !void {
     const stdin = std.io.getStdIn();
@@ -15,23 +19,30 @@ pub fn start() !void {
     var buf_writer = writer.writer();
 
     while (true) {
-        try buf_writer.print(">> ", .{});
+        try buf_writer.print("\n>> ", .{});
         try writer.flush();
 
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        defer _ = gpa.deinit();
+        var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+        defer arena.deinit();
 
         const line = try buf_reader.readUntilDelimiter(&buf, '\n');
         var lexer = try Lexer.init(
             line,
-            &gpa.allocator(),
+            arena.allocator(),
         );
         defer lexer.deinit();
 
-        var current_token = lexer.GetNextToken();
-        while (current_token.type != .eof) {
-            try buf_writer.print("{s}\t[{any}]\n", .{ current_token.literal, current_token.type });
-            current_token = lexer.GetNextToken();
+        var parser = Parser.init(&lexer, arena.allocator());
+        var program = try parser.parse();
+        std.debug.print("parsed...", .{});
+        var evaluator = Evaluator.init(arena.allocator());
+
+        const evaluated = try evaluator.evalProgram(&program);
+        switch (evaluated.*) {
+            .integer => |integer| try buf_writer.print("{}", .{integer.value}),
+            .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),
+            .null_val => |_| try buf_writer.print("null", .{}),
         }
         try writer.flush();
     }

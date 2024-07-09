@@ -25,7 +25,7 @@ pub const Evaluator = struct {
         return Evaluator{ .allocator = allocator };
     }
 
-    pub fn evalNode(self: *Self, node: Node) !*Object {
+    pub fn evalNode(self: *Self, node: Node) !*const Object {
         return switch (node) {
             // .program => |program| return try self.evalProgram(program),
             .statement => |statement| try self.evalStatement(statement),
@@ -33,29 +33,28 @@ pub const Evaluator = struct {
         };
     }
 
-    pub fn evalProgram(self: *Self, program: *Program) !*Object {
-        var result: *Object = &Object{ .null = Null{} };
+    pub fn evalProgram(self: *Self, program: *Program) !*const Object {
+        var result: *const Object = &Object{ .null_val = Null{} };
         for (program.statemets.items) |statement| {
             const evaluated = try self.evalStatement(&statement);
-            switch (evaluated.*) {
-                .keyword_return => |ret| return ret.value,
-                else => result = evaluated,
-            }
+            result = evaluated;
         }
         return result;
     }
 
-    pub fn evalStatement(self: *Self, statement: *Statement) *Object {
+    pub fn evalStatement(self: *Self, statement: *const Statement) !*const Object {
         return switch (statement.*) {
-            .expression_statement => |expression_statement| self.evalExpression(expression_statement.expression),
+            .expression_statement => |expression_statement| self.evalExpression(&expression_statement.expression),
             else => EvaluationError.InvalidStatement,
         };
     }
 
-    pub fn evalExpression(self: *Self, expression: *Expression) *Object {
+    pub fn evalExpression(self: *Self, expression: *const Expression) !*const Object {
         return switch (expression.*) {
             .int_literal => |integer| try Integer.init(&self.allocator, integer.value),
             else => EvaluationError.InvalidExpression,
         };
     }
 };
+
+test "Test" {}

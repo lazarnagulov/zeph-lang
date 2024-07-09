@@ -5,7 +5,7 @@ const EvaluationError = @import("evaluator_error.zig").EvaluationError;
 pub const Object = union(enum) {
     integer: Integer,
     boolean: Boolean,
-    null: Null,
+    null_val: Null,
 };
 
 pub const Integer = struct {
