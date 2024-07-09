@@ -51,7 +51,7 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalExpression(self: *Self, expression: *const Expression) !*const Object {
+    fn evalExpression(self: *Self, expression: *Expression) !*const Object {
         return switch (expression.*) {
             .int_literal => |integer| try Integer.init(&self.allocator, integer.value),
             .boolean => |boolean| try Boolean.init(&self.allocator, boolean.value),
@@ -64,10 +64,7 @@ pub const Evaluator = struct {
                 const right = try self.evalExpression(infix_expression.right);
                 break :blk self.evalInfixExpression(infix_expression.operator, left, right);
             },
-            .if_expression => |if_expression| blk: {
-                const result = try self.evalIfExpression(if_expression);
-                break :blk result;
-            },
+            .if_expression => |if_expression| try self.evalIfExpression(if_expression),
             else => blk: {
                 break :blk EvaluationError.InvalidExpression;
             },
@@ -75,22 +72,27 @@ pub const Evaluator = struct {
     }
 
     fn evalIfExpression(self: *Self, if_expression: *IfExpression) EvaluationError!*const Object {
-        //const condition = try self.evalExpression(if_expression.*.condition);
-
-        if (true) {
-            return try self.evalBlockStatement(if_expression.consequence);
-        } else if (if_expression.alternative) |alternative| {
-            return try self.evalBlockStatement(alternative);
-        } else {
-            return &Object{ .null_val = Null{} };
+        const consequnce = if_expression.consequence;
+        var alternative: ?BlockStatement = null;
+        if (if_expression.alternative) |alt| {
+            alternative = alt;
         }
+        const condition = try self.evalExpression(if_expression.condition);
+
+        if (try isThruty(condition)) {
+            return try self.evalBlockStatement(consequnce);
+        } else if (alternative) |alt| {
+            return try self.evalBlockStatement(alt);
+        }
+
+        return &Object{ .null_val = Null{} };
     }
 
-    fn isThruty(obj: *const Object) bool {
+    fn isThruty(obj: *const Object) !bool {
         return switch (obj.*) {
             .boolean => |boolean| boolean.value,
             .null_val => false,
-            else => true,
+            else => EvaluationError.InvalidExpression,
         };
     }
 
