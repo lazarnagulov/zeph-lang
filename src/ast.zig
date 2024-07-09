@@ -84,7 +84,7 @@ pub const Boolean = struct {
     value: bool,
 };
 
-pub const ExpressionStatement = struct { token: Token, expression: Expression };
+pub const ExpressionStatement = struct { token: Token, expression: *Expression };
 
 pub const PrefixExpression = struct {
     token: Token,

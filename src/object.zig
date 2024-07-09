@@ -17,5 +17,13 @@ pub const Integer = struct {
         return integer;
     }
 };
-pub const Boolean = struct { value: bool };
+pub const Boolean = struct {
+    value: bool,
+
+    pub fn init(allocator: *std.mem.Allocator, value: bool) !*Object {
+        const boolean = allocator.create(Object) catch return EvaluationError.OutOfMemory;
+        boolean.* = Object{ .boolean = Boolean{ .value = value } };
+        return boolean;
+    }
+};
 pub const Null = struct {};

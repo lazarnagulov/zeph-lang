@@ -27,18 +27,24 @@ pub fn start() !void {
         defer arena.deinit();
 
         const line = try buf_reader.readUntilDelimiter(&buf, '\n');
-        var lexer = try Lexer.init(
-            line,
-            arena.allocator(),
-        );
+        var lexer = Lexer.init(line, arena.allocator()) catch |err| {
+            std.debug.print("Lexer error: {}", .{err});
+            continue;
+        };
         defer lexer.deinit();
 
         var parser = Parser.init(&lexer, arena.allocator());
-        var program = try parser.parse();
-        std.debug.print("parsed...", .{});
+        var program = parser.parse() catch |err| {
+            std.debug.print("Parser error: {}", .{err});
+            continue;
+        };
         var evaluator = Evaluator.init(arena.allocator());
 
-        const evaluated = try evaluator.evalProgram(&program);
+        const evaluated = evaluator.evalProgram(&program) catch |err| {
+            std.debug.print("Evaluator error: {}", .{err});
+            continue;
+        };
+
         switch (evaluated.*) {
             .integer => |integer| try buf_writer.print("{}", .{integer.value}),
             .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),

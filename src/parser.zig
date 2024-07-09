@@ -110,16 +110,19 @@ pub const Parser = struct {
         }
 
         self.nextToken();
-        const value = try self.parseExpression(.lowest);
+        const expression = try self.parseExpression(.lowest);
 
         if (self.peek_token.type == .semicolon) {
             self.nextToken();
         }
 
+        const value = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        value.* = expression;
+
         return Let{
             .name = statement_name,
             .token = statement_token,
-            .value = &value,
+            .value = value,
         };
     }
 
@@ -127,15 +130,18 @@ pub const Parser = struct {
         const current_token = self.current_token;
         self.nextToken();
 
-        const return_value = try self.parseExpression(.lowest);
+        const expression = try self.parseExpression(.lowest);
 
         if (self.peek_token.type == .semicolon) {
             self.nextToken();
         }
 
+        const return_value = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        return_value.* = expression;
+
         return Return{
             .token = current_token,
-            .return_value = &return_value,
+            .return_value = return_value,
         };
     }
 
@@ -171,8 +177,10 @@ pub const Parser = struct {
             self.nextToken();
         }
 
+        const return_expression = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        return_expression.* = expression;
         return .{
-            .expression = expression,
+            .expression = return_expression,
             .token = current_token,
         };
     }
@@ -180,7 +188,9 @@ pub const Parser = struct {
     fn parseExpression(self: *Self, precedence: Precedence) !Expression {
         var left_expression = try self.parseExpressionByPrefix(self.current_token);
         while (self.current_token.type != .semicolon and precedence.lessThen(Precedence.fromToken(self.peek_token))) {
-            left_expression = try self.parseInfixExpressionByToken(self.current_token, &left_expression);
+            const left_expression_mem = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+            left_expression_mem.* = left_expression;
+            left_expression = try self.parseInfixExpressionByToken(self.current_token, left_expression_mem);
         }
 
         return left_expression;
@@ -289,24 +299,29 @@ pub const Parser = struct {
     fn parsePrefixExpression(self: *Self) ParseError!PrefixExpression {
         const current_token = self.current_token;
         self.nextToken();
-        var expression = try self.parseExpression(.prefix);
+        const expression = try self.parseExpression(.prefix);
+        const right = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        right.* = expression;
 
         return PrefixExpression{
             .token = current_token,
             .operator = current_token.literal,
-            .right = &expression,
+            .right = right,
         };
     }
 
     fn parseInfixExpression(self: *Self, left: *Expression) ParseError!InfixExpression {
         const current_token = self.current_token;
         self.nextToken();
-        var right = try self.parseExpression(Precedence.fromToken(current_token));
+        const expression = try self.parseExpression(Precedence.fromToken(current_token));
+        const right = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        right.* = expression;
+
         return .{
             .token = current_token,
             .left = left,
             .operator = current_token.literal,
-            .right = &right,
+            .right = right,
         };
     }
 
