@@ -3,7 +3,11 @@ const t = @import("token.zig");
 
 const Token = t.Token;
 
-pub const Node = union(enum) {};
+pub const Node = union(enum) {
+    program: *Program,
+    statement: *Statement,
+    expression: *Expression,
+};
 
 pub const Program = struct {
     statemets: std.ArrayList(Statement),
