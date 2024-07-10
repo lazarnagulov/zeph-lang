@@ -63,8 +63,7 @@ pub const Evaluator = struct {
             },
             .let => |let| blk: {
                 const value = try self.evalExpression(let.value, environment);
-                _ = try environment.set(let.name.value, value.*);
-                break :blk &Object{ .null_val = Null{} };
+                break :blk &try environment.set(let.name.value, value);
             },
         };
     }
@@ -79,7 +78,7 @@ pub const Evaluator = struct {
             },
             .identifier => |identifier| blk: {
                 if (environment.get(identifier.value)) |obj| {
-                    break :blk &obj;
+                    break :blk obj;
                 }
                 break :blk EvaluationError.InvalidIdentifier;
             },
