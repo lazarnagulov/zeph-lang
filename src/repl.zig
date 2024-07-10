@@ -6,6 +6,7 @@ const e = @import("evaluator.zig");
 const Lexer = l.Lexer;
 const Parser = p.Parser;
 const Evaluator = e.Evaluator;
+const Environment = @import("environment.zig").Environment;
 
 pub fn start() !void {
     const stdin = std.io.getStdIn();
@@ -18,12 +19,14 @@ pub fn start() !void {
     var buf_reader = reader.reader();
     var buf_writer = writer.writer();
 
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    var environment = Environment.init(arena.allocator());
+
     while (true) {
         try buf_writer.print("\n>> ", .{});
         try writer.flush();
-
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
 
         const line = try buf_reader.readUntilDelimiterOrEof(&buf, '\n');
         var lexer = Lexer.init(line.?, arena.allocator()) catch |err| {
@@ -37,9 +40,10 @@ pub fn start() !void {
             std.debug.print("Parser error: {}", .{err});
             continue;
         };
+
         var evaluator = Evaluator.init(arena.allocator());
 
-        const evaluated = evaluator.evalProgram(&program) catch |err| {
+        const evaluated = evaluator.evalProgram(&program, &environment) catch |err| {
             std.debug.print("Evaluator error: {}", .{err});
             continue;
         };

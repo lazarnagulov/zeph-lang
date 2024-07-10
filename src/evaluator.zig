@@ -9,6 +9,9 @@ const Statement = ast.Statement;
 const IfExpression = ast.IfExpression;
 const BlockStatement = ast.BlockStatement;
 const Return = ast.Return;
+const Identifier = ast.Identifier;
+
+const Environment = @import("environment.zig").Environment;
 
 const Object = o.Object;
 const Integer = o.Integer;
@@ -26,10 +29,10 @@ pub const Evaluator = struct {
         return Evaluator{ .allocator = allocator };
     }
 
-    pub fn evalProgram(self: *Self, program: *Program) !*const Object {
+    pub fn evalProgram(self: *Self, program: *Program, environment: *Environment) !*const Object {
         var result: Object = Object{ .null_val = Null{} };
         for (program.statemets.items) |statement| {
-            const evaluated = try self.evalStatement(&statement);
+            const evaluated = try self.evalStatement(&statement, environment);
             switch (evaluated.*) {
                 .ret => |ret| return ret.value,
                 else => |eval| result = eval,
@@ -38,60 +41,70 @@ pub const Evaluator = struct {
         return &result;
     }
 
-    fn evalNode(self: *Self, node: Node) !*const Object {
+    fn evalNode(self: *Self, node: Node, environment: *Environment) !*const Object {
         return switch (node) {
-            .program => |program| return try self.evalProgram(program),
-            .statement => |statement| try self.evalStatement(statement),
-            .expression => |expression| try self.evalExpression(expression),
+            .program => |program| return try self.evalProgram(program, environment),
+            .statement => |statement| try self.evalStatement(statement, environment),
+            .expression => |expression| try self.evalExpression(expression, environment),
         };
     }
 
-    fn evalStatement(self: *Self, statement: *const Statement) !*const Object {
+    fn evalStatement(self: *Self, statement: *const Statement, environment: *Environment) !*const Object {
         return switch (statement.*) {
-            .block_statement => |block_statement| self.evalBlockStatement(block_statement),
-            .expression_statement => |expression_statement| self.evalExpression(expression_statement.expression),
+            .block_statement => |block_statement| try self.evalBlockStatement(block_statement, environment),
+            .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression, environment),
             .ret => |ret| blk: {
-                const value = try self.evalExpression(ret.return_value);
+                const value = try self.evalExpression(ret.return_value, environment);
                 const object = self.allocator.create(Object) catch return EvaluationError.OutOfMemory;
 
                 object.* = .{ .ret = o.ReturnValue{ .value = value } };
 
                 break :blk object;
             },
-            else => EvaluationError.InvalidStatement,
+            .let => |let| blk: {
+                const value = try self.evalExpression(let.value, environment);
+                _ = try environment.set(let.name.value, value.*);
+                break :blk &Object{ .null_val = Null{} };
+            },
         };
     }
 
-    fn evalExpression(self: *Self, expression: *const Expression) !*const Object {
+    fn evalExpression(self: *Self, expression: *const Expression, environment: *Environment) !*const Object {
         return switch (expression.*) {
             .int_literal => |integer| try Integer.init(&self.allocator, integer.value),
             .boolean => |boolean| try Boolean.init(&self.allocator, boolean.value),
             .prefix_expression => |prefix_expression| blk: {
-                const right = try self.evalExpression(prefix_expression.right);
+                const right = try self.evalExpression(prefix_expression.right, environment);
                 break :blk self.evalPrefixExpression(prefix_expression.operator, right);
             },
+            .identifier => |identifier| blk: {
+                if (environment.get(identifier.value)) |obj| {
+                    break :blk &obj;
+                }
+                break :blk EvaluationError.InvalidIdentifier;
+            },
             .infix_expression => |infix_expression| blk: {
-                const left = try self.evalExpression(infix_expression.left);
-                const right = try self.evalExpression(infix_expression.right);
+                const left = try self.evalExpression(infix_expression.left, environment);
+                const right = try self.evalExpression(infix_expression.right, environment);
                 break :blk self.evalInfixExpression(infix_expression.operator, left, right);
             },
-            .if_expression => |if_expression| try self.evalIfExpression(if_expression),
+            .if_expression => |if_expression| try self.evalIfExpression(if_expression, environment),
             else => EvaluationError.InvalidExpression,
         };
     }
 
-    fn evalIfExpression(self: *Self, if_expression: *IfExpression) EvaluationError!*const Object {
+    fn evalIfExpression(self: *Self, if_expression: *IfExpression, environment: *Environment) EvaluationError!*const Object {
         const consequnce = if_expression.consequence;
         var alternative: ?BlockStatement = null;
         if (if_expression.alternative) |alt| {
             alternative = alt;
         }
-        const condition = try self.evalExpression(if_expression.condition);
+        const condition = try self.evalExpression(if_expression.condition, environment);
 
         if (try isThruty(condition)) {
-            return try self.evalBlockStatement(consequnce);
+            return try self.evalBlockStatement(consequnce, environment);
         } else if (alternative) |alt| {
-            return try self.evalBlockStatement(alt);
+            return try self.evalBlockStatement(alt, environment);
         }
 
         return &Object{ .null_val = Null{} };
@@ -105,12 +118,12 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalBlockStatement(self: *Self, block: BlockStatement) EvaluationError!*const Object {
+    fn evalBlockStatement(self: *Self, block: BlockStatement, environment: *Environment) EvaluationError!*const Object {
         var result = Object{ .null_val = Null{} };
         for (block.statements.items) |statement| {
-            const evaluated = try self.evalStatement(&statement);
+            const evaluated = try self.evalStatement(&statement, environment);
             switch (evaluated.*) {
-                .ret => |ret| result = ret.value.*,
+                .ret => |ret| return ret.value,
                 else => result = evaluated.*,
             }
         }
