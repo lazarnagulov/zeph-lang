@@ -1,3 +1,4 @@
+// TODO: fix segfault, returning pointers for stack allocated objects.
 const std = @import("std");
 const ast = @import("ast.zig");
 const o = @import("object.zig");
@@ -117,7 +118,7 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalBlockStatement(self: *Self, block: BlockStatement, environment: *Environment) EvaluationError!*const Object {
+    fn evalBlockStatement(self: *Self, block: BlockStatement, environment: *Environment) EvaluationError!*Object {
         var result = Object{ .null_val = Null{} };
         for (block.statements.items) |statement| {
             const evaluated = try self.evalStatement(&statement, environment);
@@ -129,7 +130,7 @@ pub const Evaluator = struct {
         return &result;
     }
 
-    fn evalInfixExpression(self: *Self, operator: []const u8, left: *const Object, right: *const Object) !*const Object {
+    fn evalInfixExpression(self: *Self, operator: []const u8, left: *const Object, right: *const Object) !*Object {
         return switch (left.*) {
             .integer => |left_integer| blk: {
                 switch (right.*) {
