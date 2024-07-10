@@ -6,6 +6,7 @@ pub const Object = union(enum) {
     integer: Integer,
     boolean: Boolean,
     null_val: Null,
+    ret: ReturnValue,
 };
 
 pub const Integer = struct {
@@ -26,4 +27,9 @@ pub const Boolean = struct {
         return boolean;
     }
 };
+
+pub const ReturnValue = struct {
+    value: *const Object,
+};
+
 pub const Null = struct {};

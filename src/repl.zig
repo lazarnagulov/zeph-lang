@@ -43,14 +43,12 @@ pub fn start() !void {
             std.debug.print("Evaluator error: {}", .{err});
             continue;
         };
-        _ = evaluated;
-        // std.debug.print("test: {}", .{evaluated});
 
-        //     switch (evaluated.*) {
-        //         .integer => |integer| try buf_writer.print("{}", .{integer.value}),
-        //         .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),
-        //         .null_val => |_| try buf_writer.print("null", .{}),
-        //     }
-        //     try writer.flush();
+        switch (evaluated.*) {
+            .integer => |integer| try buf_writer.print("{}", .{integer.value}),
+            .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),
+            else => |_| try buf_writer.print("null", .{}),
+        }
+        try writer.flush();
     }
 }

@@ -8,6 +8,7 @@ const Expression = ast.Expression;
 const Statement = ast.Statement;
 const IfExpression = ast.IfExpression;
 const BlockStatement = ast.BlockStatement;
+const Return = ast.Return;
 
 const Object = o.Object;
 const Integer = o.Integer;
@@ -29,8 +30,10 @@ pub const Evaluator = struct {
         var result: Object = Object{ .null_val = Null{} };
         for (program.statemets.items) |statement| {
             const evaluated = try self.evalStatement(&statement);
-            result = evaluated.*;
-            std.debug.print("result: {}", .{result});
+            switch (evaluated.*) {
+                .ret => |ret| return ret.value,
+                else => |eval| result = eval,
+            }
         }
         return &result;
     }
@@ -47,11 +50,19 @@ pub const Evaluator = struct {
         return switch (statement.*) {
             .block_statement => |block_statement| self.evalBlockStatement(block_statement),
             .expression_statement => |expression_statement| self.evalExpression(expression_statement.expression),
+            .ret => |ret| blk: {
+                const value = try self.evalExpression(ret.return_value);
+                const object = self.allocator.create(Object) catch return EvaluationError.OutOfMemory;
+
+                object.* = .{ .ret = o.ReturnValue{ .value = value } };
+
+                break :blk object;
+            },
             else => EvaluationError.InvalidStatement,
         };
     }
 
-    fn evalExpression(self: *Self, expression: *Expression) !*const Object {
+    fn evalExpression(self: *Self, expression: *const Expression) !*const Object {
         return switch (expression.*) {
             .int_literal => |integer| try Integer.init(&self.allocator, integer.value),
             .boolean => |boolean| try Boolean.init(&self.allocator, boolean.value),
@@ -65,9 +76,7 @@ pub const Evaluator = struct {
                 break :blk self.evalInfixExpression(infix_expression.operator, left, right);
             },
             .if_expression => |if_expression| try self.evalIfExpression(if_expression),
-            else => blk: {
-                break :blk EvaluationError.InvalidExpression;
-            },
+            else => EvaluationError.InvalidExpression,
         };
     }
 
@@ -97,12 +106,15 @@ pub const Evaluator = struct {
     }
 
     fn evalBlockStatement(self: *Self, block: BlockStatement) EvaluationError!*const Object {
-        var result = &Object{ .null_val = Null{} };
+        var result = Object{ .null_val = Null{} };
         for (block.statements.items) |statement| {
-            const evaluted = try self.evalStatement(&statement);
-            result = evaluted;
+            const evaluated = try self.evalStatement(&statement);
+            switch (evaluated.*) {
+                .ret => |ret| result = ret.value.*,
+                else => result = evaluated.*,
+            }
         }
-        return result;
+        return &result;
     }
 
     fn evalInfixExpression(self: *Self, operator: []const u8, left: *const Object, right: *const Object) !*const Object {
