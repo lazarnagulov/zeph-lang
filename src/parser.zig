@@ -53,7 +53,7 @@ pub const Parser = struct {
         const current_token = lexer.GetNextToken();
         const peek_token = lexer.GetNextToken();
 
-        return Parser{
+        return .{
             .lexer = lexer,
             .current_token = current_token,
             .peek_token = peek_token,
@@ -80,9 +80,9 @@ pub const Parser = struct {
 
     fn parseStatement(self: *Self) !Statement {
         return switch (self.current_token.type) {
-            .keyword_let => Statement{ .let = try self.parseLetStatement() },
-            .keyword_return => Statement{ .ret = try self.parseReturnStatement() },
-            else => Statement{ .expression_statement = try self.parseExpressionStatement() },
+            .keyword_let => .{ .let = try self.parseLetStatement() },
+            .keyword_return => .{ .ret = try self.parseReturnStatement() },
+            else => .{ .expression_statement = try self.parseExpressionStatement() },
         };
     }
 
@@ -140,7 +140,7 @@ pub const Parser = struct {
         const return_value = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
         return_value.* = expression;
 
-        return Return{
+        return .{
             .token = current_token,
             .return_value = return_value,
         };
@@ -238,17 +238,11 @@ pub const Parser = struct {
 
     fn parseIntegerLiteral(self: *Self) !IntegerLiteral {
         const value = std.fmt.parseInt(i64, self.current_token.literal, 10) catch return ParseError.InvalidInteger;
-        return .{
-            .token = self.current_token,
-            .value = value,
-        };
+        return .{ .token = self.current_token, .value = value };
     }
 
     fn parseBoolean(self: *Self) Boolean {
-        return .{
-            .token = self.current_token,
-            .value = self.current_token.type == .keyword_true,
-        };
+        return .{ .token = self.current_token, .value = self.current_token.type == .keyword_true };
     }
 
     fn parseFunctionLiteral(self: *Self) ParseError!FunctionLiteral {
@@ -265,11 +259,7 @@ pub const Parser = struct {
 
         const body = try self.parseBlockStatement();
 
-        return .{
-            .body = body,
-            .parameters = parameters,
-            .token = current_token,
-        };
+        return .{ .body = body, .parameters = parameters, .token = current_token };
     }
 
     fn parseFunctionParameters(self: *Self, parameters: *std.ArrayList(Identifier)) !void {
