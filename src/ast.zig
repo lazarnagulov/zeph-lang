@@ -44,7 +44,7 @@ pub const Statement = union(enum) {
 pub const Let = struct {
     token: Token,
     name: Identifier,
-    value: *const Expression,
+    value: *Expression,
 
     const Self = @This();
 
@@ -55,7 +55,7 @@ pub const Let = struct {
 
 pub const Return = struct {
     token: Token,
-    return_value: *const Expression,
+    return_value: *Expression,
 };
 
 pub const Identifier = struct {
@@ -109,7 +109,7 @@ pub const IfExpression = struct {
 
 pub const CallExpression = struct {
     token: Token,
-    function: *const Expression,
+    function: *Expression,
     arguments: std.ArrayList(Expression),
 };
 

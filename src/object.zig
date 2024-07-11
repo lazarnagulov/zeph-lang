@@ -12,24 +12,24 @@ pub const Object = union(enum) {
 pub const Integer = struct {
     value: i64,
 
-    pub fn init(allocator: *std.mem.Allocator, value: i64) !*Object {
+    pub fn init(allocator: *std.mem.Allocator, value: i64) !Object {
         const integer = allocator.create(Object) catch return EvaluationError.OutOfMemory;
         integer.* = Object{ .integer = Integer{ .value = value } };
-        return integer;
+        return integer.*;
     }
 };
 pub const Boolean = struct {
     value: bool,
 
-    pub fn init(allocator: *std.mem.Allocator, value: bool) !*Object {
+    pub fn init(allocator: *std.mem.Allocator, value: bool) !Object {
         const boolean = allocator.create(Object) catch return EvaluationError.OutOfMemory;
         boolean.* = Object{ .boolean = Boolean{ .value = value } };
-        return boolean;
+        return boolean.*;
     }
 };
 
 pub const ReturnValue = struct {
-    value: *const Object,
+    value: *Object,
 };
 
 pub const Null = struct {};

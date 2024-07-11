@@ -216,12 +216,12 @@ pub const Parser = struct {
         }
 
         self.nextToken();
-        try arguments.*.append(try self.parseExpression(.lowest));
+        try arguments.append(try self.parseExpression(.lowest));
 
         while (self.peek_token.type == .comma) {
             self.nextToken();
             self.nextToken();
-            try arguments.*.append(try self.parseExpression(.lowest));
+            try arguments.append(try self.parseExpression(.lowest));
         }
 
         if (!self.expectPeek(.right_paren)) {

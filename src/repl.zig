@@ -48,7 +48,7 @@ pub fn start() !void {
             continue;
         };
 
-        switch (evaluated.*) {
+        switch (evaluated) {
             .integer => |integer| try buf_writer.print("{}", .{integer.value}),
             .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),
             else => |_| try buf_writer.print("null", .{}),
