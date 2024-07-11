@@ -202,7 +202,7 @@ pub const Parser = struct {
         var arguments = std.ArrayList(Expression).init(self.allocator);
         try self.parseCallArguments(&arguments);
 
-        return CallExpression{
+        return .{
             .arguments = arguments,
             .token = current_token,
             .function = function,
@@ -230,7 +230,7 @@ pub const Parser = struct {
     }
 
     fn parseIdentifier(self: *Self) Identifier {
-        return Identifier{
+        return .{
             .token = self.current_token,
             .value = self.current_token.literal,
         };
@@ -238,7 +238,7 @@ pub const Parser = struct {
 
     fn parseIntegerLiteral(self: *Self) !IntegerLiteral {
         const value = std.fmt.parseInt(i64, self.current_token.literal, 10) catch return ParseError.InvalidInteger;
-        return IntegerLiteral{
+        return .{
             .token = self.current_token,
             .value = value,
         };
@@ -265,7 +265,7 @@ pub const Parser = struct {
 
         const body = try self.parseBlockStatement();
 
-        return FunctionLiteral{
+        return .{
             .body = body,
             .parameters = parameters,
             .token = current_token,
@@ -278,7 +278,7 @@ pub const Parser = struct {
             return;
         }
         self.nextToken();
-        try parameters.*.append(Identifier{
+        try parameters.*.append(.{
             .token = self.current_token,
             .value = self.current_token.literal,
         });
@@ -286,7 +286,7 @@ pub const Parser = struct {
         while (self.peek_token.type == .comma) {
             self.nextToken();
             self.nextToken();
-            try parameters.*.append(Identifier{
+            try parameters.*.append(.{
                 .token = self.current_token,
                 .value = self.current_token.literal,
             });
@@ -304,7 +304,7 @@ pub const Parser = struct {
         const right = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
         right.* = expression;
 
-        return PrefixExpression{
+        return .{
             .token = current_token,
             .operator = current_token.literal,
             .right = right,
@@ -362,7 +362,7 @@ pub const Parser = struct {
             alternative = try self.parseBlockStatement();
         }
 
-        return IfExpression{
+        return .{
             .token = current_token,
             .condition = condition,
             .consequence = consequence,
@@ -385,9 +385,7 @@ pub const Parser = struct {
             return ParseError.ExpectedEnd;
         }
 
-        return BlockStatement{
-            .statements = statements,
-        };
+        return .{ .statements = statements };
     }
 
     fn parseBlockStatement(self: *Self) !BlockStatement {
