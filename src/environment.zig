@@ -7,18 +7,33 @@ const Object = o.Object;
 pub const Environment = struct {
     allocator: std.mem.Allocator,
     store: std.StringHashMap(Object),
+    outer: ?*Environment,
 
     const Self = @This();
+
+    pub fn initEnclose(allocator: std.mem.Allocator, outer: *Environment) Environment {
+        var env = init(allocator);
+        env.outer = outer;
+        return env;
+    }
 
     pub fn init(allocator: std.mem.Allocator) Environment {
         return .{
             .allocator = allocator,
             .store = std.StringHashMap(Object).init(allocator),
+            .outer = null,
         };
     }
 
     pub fn get(self: *Self, name: []const u8) ?Object {
-        return self.store.get(name);
+        const value = self.store.get(name);
+        if (value) |val| {
+            return val;
+        }
+        if (self.outer) |env| {
+            return env.get(name);
+        }
+        return null;
     }
 
     pub fn set(self: *Self, name: []const u8, value: *Object) !Object {

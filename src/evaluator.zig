@@ -15,6 +15,7 @@ const Environment = @import("environment.zig").Environment;
 
 const Object = o.Object;
 const Integer = o.Integer;
+const Function = o.Function;
 const Boolean = o.Boolean;
 const Null = o.Null;
 
@@ -88,8 +89,48 @@ pub const Evaluator = struct {
                 break :blk self.evalInfixExpression(infix_expression.operator, &left, &right);
             },
             .if_expression => |if_expression| try self.evalIfExpression(if_expression, environment),
-            else => EvaluationError.InvalidExpression,
+            .function_literal => |function_literal| try Function.init(
+                &self.allocator,
+                &function_literal.parameters,
+                function_literal.body,
+                environment,
+            ),
+            .call_expression => |call_expression| blk: {
+                const function = try self.evalExpression(call_expression.function, environment);
+                var arguments = std.ArrayList(Object).init(self.allocator);
+                for (call_expression.arguments.items) |*argument| {
+                    try arguments.append(try self.evalExpression(argument, environment));
+                }
+                break :blk try self.applyFunction(function, arguments);
+            },
         };
+    }
+
+    fn applyFunction(self: *Self, function: Object, arguments: std.ArrayList(Object)) !Object {
+        return switch (function) {
+            .function => |*func| blk: {
+                if (func.paramaters.items.len != arguments.items.len) {
+                    break :blk EvaluationError.InvalidArguments;
+                }
+
+                const extended_env = try self.extendFunctionEnvironment(func, arguments);
+                const evaluated = try self.evalBlockStatement(func.body, extended_env);
+                switch (evaluated) {
+                    .ret => |ret| break :blk ret.value.*,
+                    else => |eval| break :blk eval,
+                }
+            },
+            else => EvaluationError.InvalidOperator,
+        };
+    }
+
+    fn extendFunctionEnvironment(self: *Self, function: *const Function, arguments: std.ArrayList(Object)) !*Environment {
+        const env = self.allocator.create(Environment) catch return EvaluationError.OutOfMemory;
+        env.* = Environment.initEnclose(self.allocator, function.environment);
+        for (function.paramaters.items, 0..) |param, idx| {
+            _ = try env.set(param.token.literal, &arguments.items[idx]);
+        }
+        return env;
     }
 
     fn evalIfExpression(self: *Self, if_expression: *IfExpression, environment: *Environment) EvaluationError!Object {

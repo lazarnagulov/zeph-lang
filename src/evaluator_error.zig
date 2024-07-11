@@ -4,4 +4,5 @@ pub const EvaluationError = error{
     InvalidIdentifier,
     InvalidExpression,
     InvalidStatement,
+    InvalidArguments,
 };

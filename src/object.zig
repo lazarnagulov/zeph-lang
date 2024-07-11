@@ -1,11 +1,14 @@
 const std = @import("std");
+const ast = @import("ast.zig");
 
 const EvaluationError = @import("evaluator_error.zig").EvaluationError;
+const Environment = @import("environment.zig").Environment;
 
 pub const Object = union(enum) {
     integer: Integer,
     boolean: Boolean,
     null_val: Null,
+    function: Function,
     ret: ReturnValue,
 };
 
@@ -30,6 +33,22 @@ pub const Boolean = struct {
 
 pub const ReturnValue = struct {
     value: *Object,
+};
+
+pub const Function = struct {
+    paramaters: std.ArrayList(ast.Identifier),
+    body: ast.BlockStatement,
+    environment: *Environment,
+
+    pub fn init(allocator: *std.mem.Allocator, parameters: *const std.ArrayList(ast.Identifier), body: ast.BlockStatement, environment: *Environment) !Object {
+        const function = allocator.create(Object) catch return EvaluationError.OutOfMemory;
+        function.* = .{ .function = .{
+            .paramaters = parameters.*,
+            .body = body,
+            .environment = environment,
+        } };
+        return function.*;
+    }
 };
 
 pub const Null = struct {};
