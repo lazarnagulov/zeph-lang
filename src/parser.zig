@@ -131,6 +131,16 @@ pub const Parser = struct {
         const current_token = self.current_token;
         self.nextToken();
 
+        if (self.current_token.type == .semicolon) {
+            self.nextToken();
+            const return_value = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+
+            return .{
+                .token = current_token,
+                .return_value = return_value,
+            };
+        }
+
         const expression = try self.parseExpression(.lowest);
 
         if (self.peek_token.type == .semicolon) {
@@ -389,12 +399,12 @@ test "ParseLet" {
         \\ let y = 15 + 20;
         \\ let foobar = 41241;
     ;
-    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer allocator.deinit();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
 
-    var lexer = try Lexer.init(input, allocator.allocator());
+    var lexer = try Lexer.init(input, allocator);
     defer lexer.deinit();
-    var parser = Parser.init(&lexer, allocator.allocator());
+    var parser = Parser.init(&lexer, allocator);
 
     var program = try parser.parse();
     defer program.deinit();
@@ -408,6 +418,7 @@ test "ParseReturn" {
         \\ return 5;
         \\ return 10;
         \\ return 9421421;
+        \\ return;
     ;
 
     var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
@@ -419,7 +430,7 @@ test "ParseReturn" {
 
     var program = try parser.parse();
     defer program.deinit();
-    try std.testing.expect(program.statemets.items.len == 3);
+    try std.testing.expect(program.statemets.items.len == 4);
 }
 
 test "ParseExpression" {

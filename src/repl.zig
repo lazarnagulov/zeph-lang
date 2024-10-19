@@ -40,6 +40,7 @@ pub fn start() !void {
             std.debug.print("Parser error: {}", .{err});
             continue;
         };
+        defer program.deinit();
 
         var evaluator = Evaluator.init(arena.allocator());
 
