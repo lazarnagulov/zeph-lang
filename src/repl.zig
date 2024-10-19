@@ -1,7 +1,12 @@
 const std = @import("std");
-const l = @import("lexer.zig");
+const l = @import("lexer/lexer.zig");
+const p = @import("parser/parser.zig");
+const e = @import("evaluator/evaluator.zig");
 
 const Lexer = l.Lexer;
+const Parser = p.Parser;
+const Evaluator = e.Evaluator;
+const Environment = @import("core/environment.zig").Environment;
 
 pub fn start() !void {
     const stdin = std.io.getStdIn();
@@ -14,24 +19,40 @@ pub fn start() !void {
     var buf_reader = reader.reader();
     var buf_writer = writer.writer();
 
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    var environment = Environment.init(arena.allocator());
+
     while (true) {
-        try buf_writer.print(">> ", .{});
+        try buf_writer.print("\n>> ", .{});
         try writer.flush();
 
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        defer _ = gpa.deinit();
-
-        const line = try buf_reader.readUntilDelimiter(&buf, '\n');
-        var lexer = try Lexer.init(
-            line,
-            &gpa.allocator(),
-        );
+        const line = try buf_reader.readUntilDelimiterOrEof(&buf, '\n');
+        var lexer = Lexer.init(line.?, arena.allocator()) catch |err| {
+            std.debug.print("Lexer error: {}", .{err});
+            continue;
+        };
         defer lexer.deinit();
 
-        var current_token = lexer.GetNextToken();
-        while (current_token.type != .eof) {
-            try buf_writer.print("{s}\t[{any}]\n", .{ current_token.literal, current_token.type });
-            current_token = lexer.GetNextToken();
+        var parser = Parser.init(&lexer, arena.allocator());
+        var program = parser.parse() catch |err| {
+            std.debug.print("Parser error: {}", .{err});
+            continue;
+        };
+        defer program.deinit();
+
+        var evaluator = Evaluator.init(arena.allocator());
+
+        const evaluated = evaluator.evalProgram(&program, &environment) catch |err| {
+            std.debug.print("Evaluator error: {}", .{err});
+            continue;
+        };
+
+        switch (evaluated) {
+            .integer => |integer| try buf_writer.print("{}", .{integer.value}),
+            .boolean => |boolean| try buf_writer.print("{}", .{boolean.value}),
+            else => |_| try buf_writer.print("null", .{}),
         }
         try writer.flush();
     }

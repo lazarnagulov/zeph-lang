@@ -3,7 +3,11 @@ const t = @import("token.zig");
 
 const Token = t.Token;
 
-pub const Node = union(enum) {};
+pub const Node = union(enum) {
+    program: *Program,
+    statement: *Statement,
+    expression: *Expression,
+};
 
 pub const Program = struct {
     statemets: std.ArrayList(Statement),
@@ -34,12 +38,13 @@ pub const Statement = union(enum) {
     let: Let,
     ret: Return,
     expression_statement: ExpressionStatement,
+    block_statement: BlockStatement,
 };
 
 pub const Let = struct {
     token: Token,
     name: Identifier,
-    value: *const Expression,
+    value: *Expression,
 
     const Self = @This();
 
@@ -50,7 +55,7 @@ pub const Let = struct {
 
 pub const Return = struct {
     token: Token,
-    return_value: *const Expression,
+    return_value: *Expression,
 };
 
 pub const Identifier = struct {
@@ -80,7 +85,7 @@ pub const Boolean = struct {
     value: bool,
 };
 
-pub const ExpressionStatement = struct { token: Token, expression: Expression };
+pub const ExpressionStatement = struct { token: Token, expression: *Expression };
 
 pub const PrefixExpression = struct {
     token: Token,
@@ -97,18 +102,17 @@ pub const InfixExpression = struct {
 
 pub const IfExpression = struct {
     token: Token,
-    condition: Expression,
+    condition: *Expression,
     consequence: BlockStatement,
     alternative: ?BlockStatement,
 };
 
 pub const CallExpression = struct {
     token: Token,
-    function: *const Expression,
+    function: *Expression,
     arguments: std.ArrayList(Expression),
 };
 
 pub const BlockStatement = struct {
-    token: Token,
     statements: std.ArrayList(Statement),
 };

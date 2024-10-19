@@ -1,4 +1,4 @@
-const t = @import("token.zig");
+const t = @import("../core/token.zig");
 const std = @import("std");
 
 const Token = t.Token;
@@ -145,6 +145,23 @@ pub const Lexer = struct {
         self.read_position += 1;
     }
 };
+
+test "Paren" {
+    const input = "(2+3-2);";
+    const result = [_]Token{ Token.init(.left_paren, "("), Token.init(.int, "2"), Token.init(.plus, "+"), Token.init(.int, "3"), Token.init(.minus, "-"), Token.init(.int, "2"), Token.init(.right_paren, ")"), Token.init(.semicolon, ";") };
+
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
+
+    var lexer = try Lexer.init(input, allocator.allocator());
+    defer lexer.deinit();
+
+    for (result) |token| {
+        const current_token = lexer.GetNextToken();
+        try std.testing.expectEqual(token.type, current_token.type);
+        try std.testing.expectEqualStrings(token.literal, current_token.literal);
+    }
+}
 
 test "NextToken" {
     const input =

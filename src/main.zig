@@ -1,6 +1,6 @@
 const std = @import("std");
 const repl = @import("repl.zig");
-const parser = @import("parser.zig");
+const parser = @import("parser/parser.zig");
 
 pub fn main() !void {
     try repl.start();

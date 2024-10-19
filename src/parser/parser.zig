@@ -1,9 +1,9 @@
 const std = @import("std");
-const l = @import("lexer.zig");
-const t = @import("token.zig");
+const l = @import("../lexer/lexer.zig");
+const t = @import("../core/token.zig");
 const p = @import("precedence.zig");
 
-const ast = @import("ast.zig");
+const ast = @import("../core/ast.zig");
 
 const Program = ast.Program;
 const Statement = ast.Statement;
@@ -53,7 +53,7 @@ pub const Parser = struct {
         const current_token = lexer.GetNextToken();
         const peek_token = lexer.GetNextToken();
 
-        return Parser{
+        return .{
             .lexer = lexer,
             .current_token = current_token,
             .peek_token = peek_token,
@@ -69,6 +69,7 @@ pub const Parser = struct {
             statemets.append(statement) catch return ParseError.InvalidProgram;
             self.nextToken();
         }
+
         return Program.init(&statemets);
     }
 
@@ -79,9 +80,9 @@ pub const Parser = struct {
 
     fn parseStatement(self: *Self) !Statement {
         return switch (self.current_token.type) {
-            .keyword_let => Statement{ .let = try self.parseLetStatement() },
-            .keyword_return => Statement{ .ret = try self.parseReturnStatement() },
-            else => Statement{ .expression_statement = try self.parseExpressionStatement() },
+            .keyword_let => .{ .let = try self.parseLetStatement() },
+            .keyword_return => .{ .ret = try self.parseReturnStatement() },
+            else => .{ .expression_statement = try self.parseExpressionStatement() },
         };
     }
 
@@ -110,16 +111,19 @@ pub const Parser = struct {
         }
 
         self.nextToken();
-        const value = try self.parseExpression(.lowest);
+        const expression = try self.parseExpression(.lowest);
 
         if (self.peek_token.type == .semicolon) {
             self.nextToken();
         }
 
+        const value = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        value.* = expression;
+
         return Let{
             .name = statement_name,
             .token = statement_token,
-            .value = &value,
+            .value = value,
         };
     }
 
@@ -127,15 +131,28 @@ pub const Parser = struct {
         const current_token = self.current_token;
         self.nextToken();
 
-        const return_value = try self.parseExpression(.lowest);
+        if (self.current_token.type == .semicolon) {
+            self.nextToken();
+            const return_value = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+
+            return .{
+                .token = current_token,
+                .return_value = return_value,
+            };
+        }
+
+        const expression = try self.parseExpression(.lowest);
 
         if (self.peek_token.type == .semicolon) {
             self.nextToken();
         }
 
-        return Return{
+        const return_value = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        return_value.* = expression;
+
+        return .{
             .token = current_token,
-            .return_value = &return_value,
+            .return_value = return_value,
         };
     }
 
@@ -171,8 +188,10 @@ pub const Parser = struct {
             self.nextToken();
         }
 
+        const return_expression = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        return_expression.* = expression;
         return .{
-            .expression = expression,
+            .expression = return_expression,
             .token = current_token,
         };
     }
@@ -180,7 +199,9 @@ pub const Parser = struct {
     fn parseExpression(self: *Self, precedence: Precedence) !Expression {
         var left_expression = try self.parseExpressionByPrefix(self.current_token);
         while (self.current_token.type != .semicolon and precedence.lessThen(Precedence.fromToken(self.peek_token))) {
-            left_expression = try self.parseInfixExpressionByToken(self.current_token, &left_expression);
+            const left_expression_mem = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+            left_expression_mem.* = left_expression;
+            left_expression = try self.parseInfixExpressionByToken(self.current_token, left_expression_mem);
         }
 
         return left_expression;
@@ -191,7 +212,7 @@ pub const Parser = struct {
         var arguments = std.ArrayList(Expression).init(self.allocator);
         try self.parseCallArguments(&arguments);
 
-        return CallExpression{
+        return .{
             .arguments = arguments,
             .token = current_token,
             .function = function,
@@ -205,12 +226,12 @@ pub const Parser = struct {
         }
 
         self.nextToken();
-        try arguments.*.append(try self.parseExpression(.lowest));
+        try arguments.append(try self.parseExpression(.lowest));
 
         while (self.peek_token.type == .comma) {
             self.nextToken();
             self.nextToken();
-            try arguments.*.append(try self.parseExpression(.lowest));
+            try arguments.append(try self.parseExpression(.lowest));
         }
 
         if (!self.expectPeek(.right_paren)) {
@@ -219,7 +240,7 @@ pub const Parser = struct {
     }
 
     fn parseIdentifier(self: *Self) Identifier {
-        return Identifier{
+        return .{
             .token = self.current_token,
             .value = self.current_token.literal,
         };
@@ -227,17 +248,11 @@ pub const Parser = struct {
 
     fn parseIntegerLiteral(self: *Self) !IntegerLiteral {
         const value = std.fmt.parseInt(i64, self.current_token.literal, 10) catch return ParseError.InvalidInteger;
-        return IntegerLiteral{
-            .token = self.current_token,
-            .value = value,
-        };
+        return .{ .token = self.current_token, .value = value };
     }
 
     fn parseBoolean(self: *Self) Boolean {
-        return .{
-            .token = self.current_token,
-            .value = self.current_token.type == .keyword_true,
-        };
+        return .{ .token = self.current_token, .value = self.current_token.type == .keyword_true };
     }
 
     fn parseFunctionLiteral(self: *Self) ParseError!FunctionLiteral {
@@ -254,11 +269,7 @@ pub const Parser = struct {
 
         const body = try self.parseBlockStatement();
 
-        return FunctionLiteral{
-            .body = body,
-            .parameters = parameters,
-            .token = current_token,
-        };
+        return .{ .body = body, .parameters = parameters, .token = current_token };
     }
 
     fn parseFunctionParameters(self: *Self, parameters: *std.ArrayList(Identifier)) !void {
@@ -267,7 +278,7 @@ pub const Parser = struct {
             return;
         }
         self.nextToken();
-        try parameters.*.append(Identifier{
+        try parameters.*.append(.{
             .token = self.current_token,
             .value = self.current_token.literal,
         });
@@ -275,7 +286,7 @@ pub const Parser = struct {
         while (self.peek_token.type == .comma) {
             self.nextToken();
             self.nextToken();
-            try parameters.*.append(Identifier{
+            try parameters.*.append(.{
                 .token = self.current_token,
                 .value = self.current_token.literal,
             });
@@ -289,29 +300,35 @@ pub const Parser = struct {
     fn parsePrefixExpression(self: *Self) ParseError!PrefixExpression {
         const current_token = self.current_token;
         self.nextToken();
-        var expression = try self.parseExpression(.prefix);
+        const expression = try self.parseExpression(.prefix);
+        const right = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        right.* = expression;
 
-        return PrefixExpression{
+        return .{
             .token = current_token,
             .operator = current_token.literal,
-            .right = &expression,
+            .right = right,
         };
     }
 
     fn parseInfixExpression(self: *Self, left: *Expression) ParseError!InfixExpression {
         const current_token = self.current_token;
         self.nextToken();
-        var right = try self.parseExpression(Precedence.fromToken(current_token));
+        const expression = try self.parseExpression(Precedence.fromToken(current_token));
+        const right = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        right.* = expression;
+
         return .{
             .token = current_token,
             .left = left,
             .operator = current_token.literal,
-            .right = &right,
+            .right = right,
         };
     }
 
     fn parseGroupExpression(self: *Self) ParseError!Expression {
         self.nextToken();
+
         const expression = self.parseExpression(.lowest);
 
         if (!self.expectPeek(.right_paren)) {
@@ -328,7 +345,8 @@ pub const Parser = struct {
             return ParseError.ExpectedLeftParen;
         }
 
-        const condition = try self.parseExpression(.lowest);
+        const condition = self.allocator.create(Expression) catch return ParseError.OutOfMemory;
+        condition.* = try self.parseExpression(.lowest);
         if (self.current_token.type != .right_paren) {
             return ParseError.ExpectedRightParen;
         }
@@ -344,7 +362,7 @@ pub const Parser = struct {
             alternative = try self.parseBlockStatement();
         }
 
-        return IfExpression{
+        return .{
             .token = current_token,
             .condition = condition,
             .consequence = consequence,
@@ -353,7 +371,6 @@ pub const Parser = struct {
     }
 
     fn parseBlockStatementOnDelimiter(self: *Self, delimter: TokenType) !BlockStatement {
-        const current_token = self.current_token;
         var statements = std.ArrayList(Statement).init(self.allocator);
 
         self.nextToken();
@@ -368,14 +385,11 @@ pub const Parser = struct {
             return ParseError.ExpectedEnd;
         }
 
-        return BlockStatement{
-            .token = current_token,
-            .statements = statements,
-        };
+        return .{ .statements = statements };
     }
 
     fn parseBlockStatement(self: *Self) !BlockStatement {
-        return self.parseBlockStatementOnDelimiter(.keyword_end);
+        return try self.parseBlockStatementOnDelimiter(.keyword_end);
     }
 };
 
@@ -385,12 +399,12 @@ test "ParseLet" {
         \\ let y = 15 + 20;
         \\ let foobar = 41241;
     ;
-    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer allocator.deinit();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
 
-    var lexer = try Lexer.init(input, allocator.allocator());
+    var lexer = try Lexer.init(input, allocator);
     defer lexer.deinit();
-    var parser = Parser.init(&lexer, allocator.allocator());
+    var parser = Parser.init(&lexer, allocator);
 
     var program = try parser.parse();
     defer program.deinit();
@@ -404,6 +418,7 @@ test "ParseReturn" {
         \\ return 5;
         \\ return 10;
         \\ return 9421421;
+        \\ return;
     ;
 
     var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
@@ -415,7 +430,7 @@ test "ParseReturn" {
 
     var program = try parser.parse();
     defer program.deinit();
-    try std.testing.expect(program.statemets.items.len == 3);
+    try std.testing.expect(program.statemets.items.len == 4);
 }
 
 test "ParseExpression" {
@@ -456,6 +471,24 @@ test "ParsePrefix" {
     try std.testing.expectEqualStrings(program.statemets.items[0].expression_statement.expression.prefix_expression.operator, "!");
     try std.testing.expectEqualStrings(program.statemets.items[1].expression_statement.expression.prefix_expression.operator, "-");
     try std.testing.expectEqualStrings(program.statemets.items[2].expression_statement.expression.prefix_expression.operator, "-");
+}
+
+test "SegIf" {
+    const input =
+        \\ if (2 > 1):
+        \\      5;
+        \\ end;
+    ;
+
+    var allocator = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer allocator.deinit();
+
+    var lexer = try Lexer.init(input, allocator.allocator());
+    defer lexer.deinit();
+
+    var parser = Parser.init(&lexer, allocator.allocator());
+    var program = try parser.parse();
+    defer program.deinit();
 }
 
 test "ParseIf" {
