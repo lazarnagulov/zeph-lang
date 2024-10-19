@@ -1,4 +1,4 @@
-const t = @import("token.zig");
+const t = @import("../core/token.zig");
 
 const Token = t.Token;
 

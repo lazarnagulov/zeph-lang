@@ -1,12 +1,12 @@
 const std = @import("std");
-const l = @import("lexer.zig");
-const p = @import("parser.zig");
-const e = @import("evaluator.zig");
+const l = @import("lexer/lexer.zig");
+const p = @import("parser/parser.zig");
+const e = @import("evaluator/evaluator.zig");
 
 const Lexer = l.Lexer;
 const Parser = p.Parser;
 const Evaluator = e.Evaluator;
-const Environment = @import("environment.zig").Environment;
+const Environment = @import("core/environment.zig").Environment;
 
 pub fn start() !void {
     const stdin = std.io.getStdIn();

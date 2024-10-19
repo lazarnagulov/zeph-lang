@@ -1,9 +1,9 @@
 const std = @import("std");
-const l = @import("lexer.zig");
-const t = @import("token.zig");
+const l = @import("../lexer/lexer.zig");
+const t = @import("../core/token.zig");
 const p = @import("precedence.zig");
 
-const ast = @import("ast.zig");
+const ast = @import("../core/ast.zig");
 
 const Program = ast.Program;
 const Statement = ast.Statement;

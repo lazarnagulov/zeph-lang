@@ -1,6 +1,6 @@
 const std = @import("std");
-const ast = @import("ast.zig");
-const o = @import("object.zig");
+const ast = @import("../core/ast.zig");
+const o = @import("../core/object.zig");
 
 const Node = ast.Node;
 const Program = ast.Program;
@@ -11,7 +11,7 @@ const BlockStatement = ast.BlockStatement;
 const Return = ast.Return;
 const Identifier = ast.Identifier;
 
-const Environment = @import("environment.zig").Environment;
+const Environment = @import("../core/environment.zig").Environment;
 
 const Object = o.Object;
 const Integer = o.Integer;
@@ -19,7 +19,7 @@ const Function = o.Function;
 const Boolean = o.Boolean;
 const Null = o.Null;
 
-const EvaluationError = @import("evaluator_error.zig").EvaluationError;
+const EvaluationError = @import("../core/errors/evaluator_error.zig").EvaluationError;
 
 pub const Evaluator = struct {
     allocator: std.mem.Allocator,

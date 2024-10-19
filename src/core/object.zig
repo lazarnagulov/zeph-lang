@@ -1,7 +1,7 @@
 const std = @import("std");
 const ast = @import("ast.zig");
 
-const EvaluationError = @import("evaluator_error.zig").EvaluationError;
+const EvaluationError = @import("errors/evaluator_error.zig").EvaluationError;
 const Environment = @import("environment.zig").Environment;
 
 pub const Object = union(enum) {
